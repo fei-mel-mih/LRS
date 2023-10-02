@@ -30,4 +30,11 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+add_executable(map_loader src/MapLoader.cpp)
+ament_target_dependencies(map_loader rclcpp)
+install(TARGETS 
+  map_loader
+  DESTINATION lib/${PROJECT_NAME})
+
+
 ament_package()
