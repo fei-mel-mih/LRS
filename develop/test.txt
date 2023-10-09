@@ -1,1 +1,1 @@
-test
+Tento priečinok slúži iba na interné testovacie účely
