@@ -3,6 +3,8 @@
 #include <fstream>
 #include <vector>
 
+#include "lrs_data_structures.hpp"
+
 // namespace MelMih 
 // {
 //     struct Map {

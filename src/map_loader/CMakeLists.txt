@@ -18,23 +18,22 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(mavros_msgs REQUIRED)
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+include_directories(include)
 
-add_executable(map_loader src/MapLoader.cpp)
-ament_target_dependencies(map_loader rclcpp)
+add_executable(map_loader_node src/MapLoader.cpp)
+ament_target_dependencies(map_loader_node rclcpp geometry_msgs mavros_msgs)
+
+add_executable(drone_controll_node src/DroneControll.cpp)
+ament_target_dependencies(drone_controll_node rclcpp geometry_msgs mavros_msgs)
+
 install(TARGETS 
-  map_loader
-  DESTINATION lib/${PROJECT_NAME})
+  map_loader_node
+  drone_controll_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 
 ament_package()

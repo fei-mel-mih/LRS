@@ -45,6 +45,15 @@ public:
         auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
 
         // TODO: Test if drone state really changed to GUIDED
+        if (current_state_.mode == "GUIDED")
+        {
+            RCLCPP_INFO(this->get_logger(), "Drone is in guided mode");
+        } 
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(), "Drone mode didn't changed. Drone using mode: %s", current_state_.mode.c_str());
+            return;
+        }
 
         // TODO: Arm and Take Off
         RCLCPP_INFO(this->get_logger(), "Sending position command");
@@ -66,3 +75,11 @@ private:
     rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedPtr takeoff_client_;
     mavros_msgs::msg::State current_state_;
 };
+
+int main(int argc, char **argv)
+{
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<DroneControll>());
+    rclcpp::shutdown();
+    return 0;
+}
