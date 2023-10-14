@@ -56,6 +56,19 @@ public:
         }
 
         // TODO: Arm and Take Off
+        while (!arming_client_->wait_for_service(1s))
+        {
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
+                return;
+            }
+            RCLCPP_INFO(this->get_logger(), "Waiting for arming...");
+        }
+        mavros_msgs::srv::CommandBool::Request arming_request;
+        arming_request.value = true;
+        auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
+
         RCLCPP_INFO(this->get_logger(), "Sending position command");
 
         // TODO: Implement position controller and mission commands here
