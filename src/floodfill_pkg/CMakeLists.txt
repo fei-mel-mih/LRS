@@ -19,9 +19,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(lrs_interfaces REQUIRED)
 
 add_executable(floodfill_node src/FloodFill_Node.cpp)
-ament_target_dependencies(floodfill_node rclcpp floodfill_pkg lrs_interfaces)
+ament_target_dependencies(floodfill_node rclcpp lrs_interfaces)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

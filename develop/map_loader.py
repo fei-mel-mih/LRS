@@ -8,18 +8,18 @@ class Map():
         self._folder_path = folder_path
         self._file_extension = file_extension
         self.map3d = []
-        self.map_heigh = None
+        self.map_heigh = []
 
         self._parse_to_object()
 
     def _parse_to_object(self):
-        map2d = []
         files = glob.glob(os.path.join(self._folder_path, '*.' + self._file_extension))
-        for file_path in files:    
+        for file_path in files:
+            print(file_path)
             # Parse height from file name
             match = re.search(r'\d+', file_path)
             if match:
-                self.map_heigh = float(match.group())
+                self.map_heigh.append(float(match.group()))
             else:
                 raise ValueError('Unable to parse map height from file: ' + str(file_path))
             
@@ -30,6 +30,7 @@ class Map():
                 lines = data.split("\n")
                 metadata = {}
                 current_pixel_row = []
+                map2d = []
 
                 # Loop through lines and parse data
                 for line in lines:
@@ -47,7 +48,7 @@ class Map():
                         metadata["max_gray"] = int(line)
                     # Parse pixel data
                     else:
-                        current_pixel_row.append(list(map(int, line.split())))
+                        current_pixel_row = list(map(int, line.split()))
                         map2d.append(current_pixel_row)
             self.map3d.append(map2d)
 
@@ -57,7 +58,8 @@ def load_maps(folder_path: str, file_extension: str):
     print('3D lenght: ' + str(len(map_obj.map3d)))
     print('2D lenght: ' + str(len(map_obj.map3d[0])))
     print('1D lenght: ' + str(len(map_obj.map3d[0][0])))
+    print('Map heights: ' + str(map_obj.map_heigh))
 
 
 if __name__ == "__main__":
-    load_maps('maps\\', 'pgm')
+    load_maps('/home/lrs-ubuntu/Documents/lrs-git/LRS/src/map_loader/src/Maps_2D', 'pgm')

@@ -1,5 +1,10 @@
+#include <queue>
+
 #include <rclcpp/rclcpp.hpp>
-#include <floodfill_pkg/msg/point_list.hpp>
+
+#include "lrs_interfaces/msg/point_list.hpp"
+#include "lrs_interfaces/msg/point.hpp"
+#include "lrs_interfaces/srv/flood_fill.hpp"
 
 // Your Point struct here...
 struct Point {
@@ -75,11 +80,11 @@ class FloodFillNode : public rclcpp::Node
 public:
     FloodFillNode() : Node("floodfill_node")
     {
-        service_ = this->create_service<floodfill_pkg::msg::PointList>("floodfill_points", &flood_fill)
+        service_ = this->create_service<lrs_interfaces::srv::FloodFill>("floodfill_points", &flood_fill);
     }
 
 private:
-    void callback(const floodfill_pkg::msg::Vector3D::SharedPtr msg)
+    void callback(const lrs_interfaces::msg::Point::SharedPtr msg)
     {
         Point goal_point = {msg->x, msg->y, msg->z};
 
@@ -93,15 +98,10 @@ private:
         map[goal_point.x][goal_point.y][goal_point.z] = 2;
         
         // For this example, after the flood fill, gather the results
-        floodfill_pkg::msg::PointList result;
-        
-        // Populate result.points with the points you want to publish. 
-        // This will depend on how you modify the reverse_flood_fill function.
-        
-        publisher_->publish(result);
+        lrs_interfaces::msg::PointList result;
     }
 
-    rclcpp::Service<floodfill_pkg::msg::PointList>::SharedPtr service_;
+    rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
 };
 
 int main(int argc, char **argv)
