@@ -100,11 +100,12 @@ void MapReader::loadFile(const std::string& filename)
 }
 
 
-int main() 
-{
-    MapReader reader;
-    // reader.printData();
-    reader.printHeights();
+// int main() 
+// {
+//     MapReader reader;
+//     // reader.printData();
+//     reader.printHeights();
+//     reader.getMap();
 
-    return 0;
-}
+//     return 0;
+// }

@@ -10,10 +10,14 @@ public:
 
     void flood_fill()
     {
-        std::vector<std::string> filenames = {"maps/map_025.pgm", "maps/map_075.pgm", "maps/map_080.pgm", "maps/map_100.pgm", "maps/map_125.pgm", "maps/map_150.pgm", "maps/map_175.pgm", "maps/map_180.pgm","maps/map_200.pgm", "maps/map_225.pgm"};
-        MapReader map_reader(filenames);
-        // TODO: Toto sa mu nejak inak dopocitat, resp. mapa sa musi priamo tu nacitat
+        std::cout << "Starting flood_fill..." << std::endl;
+        MapReader map_reader;
+
         Point start; Point goal; std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
+        
+        start = {0, 0, 0};
+        goal = {3, 3, 3};
+
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
             {1, 0, 0}, {-1, 0, 0},
@@ -79,7 +83,10 @@ public:
 
 int main(int argc, char **argv)
 {
+    std::cout << "Entering main..." << std::endl;
     FloodFillNode fn = FloodFillNode();
+    std::cout << "Before flood_fill..." << std::endl;
     fn.flood_fill();
+    std::cout << "After flood_fill..." << std::endl;
     return 0;
 }
