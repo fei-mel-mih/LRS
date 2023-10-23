@@ -1,31 +1,27 @@
-#include <queue>
-
 #include <rclcpp/rclcpp.hpp>
 
-#include "lrs_interfaces/msg/point_list.hpp"
-#include "lrs_interfaces/msg/point.hpp"
-#include "lrs_interfaces/srv/flood_fill.hpp"
+#include <queue>
+
 #include "MapReader.h"
+#include "lrs_interfaces/srv/flood_fill.hpp"
 
 class FloodFillNode : public rclcpp::Node
 {
 public:
     FloodFillNode() : Node("floodfill_node")
     {
-        service_ = this->create_service<lrs_interfaces::srv::FloodFill>
+        RCLCPP_INFO(this->get_logger(), "Creating FloodFillNode...");
+
+        RCLCPP_INFO(this->get_logger(), "Creating flood fill service");
+        this->service_ = this->create_service<lrs_interfaces::srv::FloodFill>
         (
-            "floodfill_points",
+            "floodfill_service",
             std::bind(&FloodFillNode::flood_fill, this, std::placeholders::_1, std::placeholders::_2)
         );
+        RCLCPP_INFO(this->get_logger(), "Flood fill service created");
 
-        RCLCPP_INFO(this->get_logger(), "Server has started");
+        RCLCPP_INFO(this->get_logger(), "FloodFillNode created...");
     }
-
-private:
-    rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
-    
-    std::vector<std::string> filenames = {"maps/map_025.pgm", "maps/map_075.pgm", "maps/map_080.pgm", "maps/map_100.pgm", "maps/map_125.pgm", "maps/map_150.pgm", "maps/map_175.pgm", "maps/map_180.pgm","maps/map_200.pgm", "maps/map_225.pgm"};
-    MapReader map_reader(filenames);
 
     struct Point {
         int x, y, z;
@@ -34,8 +30,21 @@ private:
     void flood_fill(const lrs_interfaces::srv::FloodFill::Request::SharedPtr request,
                     const lrs_interfaces::srv::FloodFill::Response::SharedPtr response)
     {
-        // TODO: Toto sa mu nejak inak dopocitat, resp. mapa sa musi priamo tu nacitat
-        Point start; Point goal; std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
+        RCLCPP_INFO(this->get_logger(), "Starting flood_fill...");
+        MapReader map_reader;
+
+        Point start;
+        Point goal;
+        std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
+
+        // TODO: handle map size boundaries
+        
+        start = {request->start_point.z, request->start_point.y, request->start_point.x};
+        std::cout << map[start.x][start.y][start.z] << std::endl;
+        
+        goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
+        std::cout << map[goal.x][goal.y][goal.z] << std::endl;
+
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
             {1, 0, 0}, {-1, 0, 0},
@@ -51,6 +60,8 @@ private:
 
         std::queue<Point> q;
         q.push(goal);
+
+        map[goal.x][goal.y][goal.z] = 2;  // example starting value
 
         while (!q.empty())
         {   
@@ -91,12 +102,29 @@ private:
         }
 
         int start_value = map[start.x][start.y][start.z];
-        if (start_value > 2) {
+        if (start_value > 2) 
+        {
+            RCLCPP_INFO(this->get_logger(), "After flood_fill...");
             RCLCPP_INFO(this->get_logger(), "Path found to the start from the goal with a length of %d", start_value - 2);
-        } else {
+        } else 
+        {
             RCLCPP_INFO(this->get_logger(), "Path not found! start_value: %d", start_value);
         }
+
+        // TODO: path extraction
+
+        response->points = lrs_interfaces::msg::PointList();
     }
+
+    std::vector<Point> getFloodFillPath(std::vector<std::vector<std::vector<int>>> map)
+    {
+        // TODO: path finder
+    }
+
+private:
+    rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
+    std::string mapPath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
+    std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
 };
 
 int main(int argc, char **argv)

@@ -21,7 +21,9 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(lrs_interfaces REQUIRED)
 
-add_executable(floodfill_node src/FloodFill_Node.cpp)
+include_directories(include)
+
+add_executable(floodfill_node src/FloodFillNode.cpp src/MapReader.cpp)
 ament_target_dependencies(floodfill_node rclcpp lrs_interfaces)
 
 install(TARGETS

@@ -3,6 +3,13 @@
 
 MapReader::MapReader() 
 {
+    // Parse filenames -> append absolute path
+
+    for (auto& filename : filenames)
+    {
+        filename = mapAbsolutePath + filename;
+    }
+
     for (const auto& filename : filenames) {
         loadFile(filename);
     }
