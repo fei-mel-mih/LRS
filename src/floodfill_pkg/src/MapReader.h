@@ -20,7 +20,7 @@ class MapReader
         const std::vector<int>& getHeights() const;
 
     private:
-        int width, height, depth, maxGrayValue;
+        int width, height, maxGrayValue;
         std::vector<std::vector<std::vector<int>>> map;
         std::vector<int> heights;
         std::vector<std::string> filenames = {"maps/map_025.pgm", "maps/map_075.pgm", "maps/map_080.pgm", "maps/map_100.pgm", "maps/map_125.pgm", "maps/map_150.pgm", "maps/map_175.pgm", "maps/map_180.pgm","maps/map_200.pgm", "maps/map_225.pgm"};

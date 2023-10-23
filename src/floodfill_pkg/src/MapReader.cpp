@@ -1,7 +1,7 @@
 #include "MapReader.h"
 
 
-MapReader::MapReader() : depth(filenames.size()) 
+MapReader::MapReader() 
 {
     for (const auto& filename : filenames) {
         loadFile(filename);
@@ -10,7 +10,7 @@ MapReader::MapReader() : depth(filenames.size())
 
 void MapReader::printMap() const 
 {
-    for (int k = 0; k < depth; ++k) {
+    for (int k = 0; k <  map.size(); ++k) {
         std::cout << "Layer " << k << ":\n";
         for (int i = 0; i < height; ++i) {
             for (int j = 0; j < width; ++j) {
@@ -88,9 +88,19 @@ void MapReader::loadFile(const std::string& filename)
 
     if (lineMagicNumber == "P2") 
     {
-        for (int i = 0; i < height; ++i) {
-            for (int j = 0; j < width; ++j) {
+        for (int i = 0; i < height; ++i) 
+        {
+            for (int j = 0; j < width; ++j) 
+            {
                 file >> currentMap[i][j];
+                
+                if (currentMap[i][j] == 255) 
+                {
+                    currentMap[i][j] = 0;
+                } else if (currentMap[i][j] == 0) 
+                {
+                    currentMap[i][j] = 1;
+                }
             }
         }
     }
@@ -103,9 +113,9 @@ void MapReader::loadFile(const std::string& filename)
 // int main() 
 // {
 //     MapReader reader;
-//     // reader.printData();
-//     reader.printHeights();
-//     reader.getMap();
+//     reader.printMap();
+//     // reader.printHeights();
+//     // reader.getMap();
 
 //     return 0;
 // }

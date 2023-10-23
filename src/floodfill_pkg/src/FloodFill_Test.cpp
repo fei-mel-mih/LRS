@@ -15,8 +15,11 @@ public:
 
         Point start; Point goal; std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
         
-        start = {0, 0, 0};
-        goal = {3, 3, 3};
+        start = {5, 32, 23};
+        std::cout << map[start.x][start.y][start.z] << std::endl;
+        
+        goal = {2, 32, 23};
+        std::cout << map[goal.x][goal.y][goal.z] << std::endl;
 
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
@@ -33,6 +36,8 @@ public:
 
         std::queue<Point> q;
         q.push(goal);
+
+        map[goal.x][goal.y][goal.z] = 2;  // example starting value
 
         while (!q.empty())
         {   
@@ -73,10 +78,12 @@ public:
         }
 
         int start_value = map[start.x][start.y][start.z];
-       if (start_value > 2) {
+        if (start_value > 2) 
+        {
             std::cout << "After flood_fill..." << std::endl;
             std::cout << "Path found to the start from the goal with a length of " << start_value - 2 << std::endl;
-        } else {
+        } else 
+        {
             std::cout << "Path not found! start_value: " << start_value << std::endl;
         }
     }
