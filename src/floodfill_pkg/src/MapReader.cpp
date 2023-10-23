@@ -75,14 +75,14 @@ void MapReader::loadFile(const std::string& filename)
     // Read width, height
     std::stringstream ss(line);
     ss >> width >> height;
-    std::cout << ss.str() << std::endl;
+    // std::cout << ss.str() << std::endl;
 
     // Read max grayscale value
     std::getline(file, line);
     ss.clear();
     ss.str(line);;
     ss >> maxGrayValue;
-    std::cout << ss.str() << std::endl;
+    // std::cout << ss.str() << std::endl;
 
     std::vector<std::vector<int>> currentMap(height, std::vector<int>(width));
 

@@ -73,10 +73,11 @@ public:
         }
 
         int start_value = map[start.x][start.y][start.z];
-        if (start_value > 2) {
-            std::cout << ("Path found to the start from the goal with a length of %d", start_value - 2) << std::endl;
+       if (start_value > 2) {
+            std::cout << "After flood_fill..." << std::endl;
+            std::cout << "Path found to the start from the goal with a length of " << start_value - 2 << std::endl;
         } else {
-            std::cout << ("Path not found! start_value: %d", start_value) << std::endl;
+            std::cout << "Path not found! start_value: " << start_value << std::endl;
         }
     }
 };
@@ -87,6 +88,5 @@ int main(int argc, char **argv)
     FloodFillNode fn = FloodFillNode();
     std::cout << "Before flood_fill..." << std::endl;
     fn.flood_fill();
-    std::cout << "After flood_fill..." << std::endl;
     return 0;
 }
