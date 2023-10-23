@@ -10,7 +10,7 @@ class MapReader
             }
         }
 
-        void printData() const 
+        void printMap() const 
         {
             for (int k = 0; k < depth; ++k) {
                 std::cout << "Layer " << k << ":\n";

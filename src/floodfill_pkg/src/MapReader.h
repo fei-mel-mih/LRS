@@ -13,15 +13,15 @@ class MapReader
     public:
         MapReader(const std::vector<std::string>& filenames);
         
-        void printData() const;
+        void printMap() const;
         void printHeights() const;
 
-        const std::vector<std::vector<std::vector<int>>>& getData() const;
+        const std::vector<std::vector<std::vector<int>>>& getMap() const;
         const std::vector<int>& getHeights() const;
 
     private:
         int width, height, depth, maxGrayValue;
-        std::vector<std::vector<std::vector<int>>> data;
+        std::vector<std::vector<std::vector<int>>> map;
         std::vector<int> heights;
 
         void loadFile(const std::string& filename);
