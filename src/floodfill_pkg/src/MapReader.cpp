@@ -1,9 +1,4 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <string>
-#include <sstream> 
-#include <algorithm>
+#include "MapReader.h"
 
 class MapReader 
 {
@@ -21,7 +16,7 @@ class MapReader
                 std::cout << "Layer " << k << ":\n";
                 for (int i = 0; i < height; ++i) {
                     for (int j = 0; j < width; ++j) {
-                        std::cout << data[k][i][j] << " ";
+                        std::cout << map[k][i][j] << " ";
                     }
                     std::cout << std::endl;
                 }
@@ -37,9 +32,9 @@ class MapReader
             }
         }
 
-        const std::vector<std::vector<std::vector<int>>>& getData() const 
+        const std::vector<std::vector<std::vector<int>>>& getMap() const 
         {
-            return data;
+            return map;
         }
 
         const std::vector<int>& getHeights() const 
@@ -49,7 +44,7 @@ class MapReader
 
     private:
         int width, height, depth, maxGrayValue;
-        std::vector<std::vector<std::vector<int>>> data;
+        std::vector<std::vector<std::vector<int>>> map;
         std::vector<int> heights;
 
         void loadFile(const std::string& filename) 
@@ -108,7 +103,7 @@ class MapReader
             }
 
             // Push the 2D vector to 3D vector
-            data.push_back(currentMap);
+            map.push_back(currentMap);
         }
 };
 

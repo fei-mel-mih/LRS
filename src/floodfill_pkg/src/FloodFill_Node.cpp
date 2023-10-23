@@ -5,6 +5,7 @@
 #include "lrs_interfaces/msg/point_list.hpp"
 #include "lrs_interfaces/msg/point.hpp"
 #include "lrs_interfaces/srv/flood_fill.hpp"
+#include "MapReader.h"
 
 class FloodFillNode : public rclcpp::Node
 {
@@ -22,6 +23,9 @@ public:
 
 private:
     rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
+    
+    std::vector<std::string> filenames = {"maps/map_025.pgm", "maps/map_075.pgm", "maps/map_080.pgm", "maps/map_100.pgm", "maps/map_125.pgm", "maps/map_150.pgm", "maps/map_175.pgm", "maps/map_180.pgm","maps/map_200.pgm", "maps/map_225.pgm"};
+    MapReader map_reader(filenames);
 
     struct Point {
         int x, y, z;
@@ -31,7 +35,7 @@ private:
                     const lrs_interfaces::srv::FloodFill::Response::SharedPtr response)
     {
         // TODO: Toto sa mu nejak inak dopocitat, resp. mapa sa musi priamo tu nacitat
-        Point start; Point goal; std::vector<std::vector<std::vector<int>>> map;
+        Point start; Point goal; std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
             {1, 0, 0}, {-1, 0, 0},
