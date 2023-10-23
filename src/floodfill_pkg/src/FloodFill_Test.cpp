@@ -4,11 +4,6 @@
 class FloodFillNode
 {
 public:
-
-private:
-    
- 
-
     struct Point {
         int x, y, z;
     };
@@ -84,6 +79,7 @@ private:
 
 int main(int argc, char **argv)
 {
-
+    FloodFillNode fn = FloodFillNode();
+    fn.flood_fill();
     return 0;
 }
