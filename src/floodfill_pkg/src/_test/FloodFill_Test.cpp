@@ -1,11 +1,28 @@
 #include <queue>
 #include "MapReader.h"
+#include <limits>
 
 class FloodFillNode
 {
 public:
-    struct Point {
+    struct Point
+    {
         int x, y, z;
+
+        bool operator==(const Point &other) const
+        {
+            return (x == other.x) && (y == other.y) && (z == other.z);
+        }
+
+        bool operator!=(const Point &other) const
+        {
+            return (x != other.x) || (y != other.y) || (z != other.z);
+        }
+
+        std::string toString() const
+        {
+            return "Point(x,y,z)=[" + std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + "]";
+        }
     };
 
     void flood_fill()
@@ -85,6 +102,50 @@ public:
         } else 
         {
             std::cout << "Path not found! start_value: " << start_value << std::endl;
+        }
+
+        // Find path
+        std::vector<Point> path;
+        Point current_position = start;
+        Point min_neighbour;
+        int min_neighbour_value = std::numeric_limits<int>::max();
+        bool found = false;
+        while (current_position != goal)
+        {
+            // std::cout << "point " << current_position.toString() << ":\n";
+            path.push_back(current_position);
+            int current_value = map[current_position.x][current_position.y][current_position.z];
+            for (int dx : deltas)
+            {
+                for (int dy : deltas)
+                {
+                    for (int dz : deltas)
+                    {
+                        if (dx == 0 && dy == 0 && dz == 0)
+                        {
+                            continue;
+                        } 
+                        Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
+
+                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] < min_neighbour_value) {
+                            // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
+                            min_neighbour = neighbor;
+                            min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+                            found = true;
+                        }
+                    }
+                }
+            }
+            if (!found)
+            {
+                break;
+            }
+            current_position = min_neighbour;
+        }
+        // print path
+        for (int i = 0; i <  path.size(); i++) 
+        {
+            std::cout << "point " << path[i].toString() << ":\n";
         }
     }
 };
