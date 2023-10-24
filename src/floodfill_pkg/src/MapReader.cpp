@@ -1,6 +1,5 @@
 #include "MapReader.h"
 
-
 MapReader::MapReader() 
 {
     // Parse filenames -> append absolute path
