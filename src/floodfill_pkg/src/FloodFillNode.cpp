@@ -167,51 +167,49 @@ public:
 
     std::vector<Point> getFloodFillPath(std::vector<std::vector<std::vector<int>>> map, const Point& start, const Point& goal)
     {
-        RCLCPP_INFO(this->get_logger(), "Inside getFloodFillPath");
-        // Check if the start and goal points are valid.
-        if (map[start.z][start.y][start.x] == 0 || map[goal.z][goal.y][goal.x] != 2)
-        {
-            // No valid path found.
-            RCLCPP_ERROR(this->get_logger(), "No path found");
-            return std::vector<Point>();
-        }
-
-        // Define the 6 face neighbor offsets.
-        int directions[6][3] = {
-            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-
-        Point current_position = start;
-
+        // Find path
         std::vector<Point> path;
-        path.push_back(current_position);
-
+        Point current_position = start;
+        Point min_neighbour;
+        int min_neighbour_value = std::numeric_limits<int>::max();
+        bool found = false;
         while (current_position != goal)
         {
-            RCLCPP_INFO(this->get_logger(), "Current position: %s", current_position.toString().c_str());
-            int current_value = map[current_position.z][current_position.y][current_position.x];
-
-            for (int i = 0; i < 6; ++i)
+            // std::cout << "point " << current_position.toString() << ":\n";
+            path.push_back(current_position);
+            int current_value = map[current_position.x][current_position.y][current_position.z];
+            for (int dx : deltas)
             {
-                int dx = directions[i][0];
-                int dy = directions[i][1];
-                int dz = directions[i][2];
-
-                Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
-
-                // Check if the neighbor is within bounds and has a lower value.
-                if (0 <= neighbor.z && neighbor.z < map.size() &&
-                    0 <= neighbor.y && neighbor.y < map[0].size() &&
-                    0 <= neighbor.x && neighbor.x < map[0][0].size() &&
-                    map[neighbor.z][neighbor.y][neighbor.x] == current_value - 1)
+                for (int dy : deltas)
                 {
-                    path.push_back(neighbor);
-                    current_position = neighbor;
-                    break;
+                    for (int dz : deltas)
+                    {
+                        if (dx == 0 && dy == 0 && dz == 0)
+                        {
+                            continue;
+                        } 
+                        Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
+
+                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] < min_neighbour_value) {
+                            // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
+                            min_neighbour = neighbor;
+                            min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+                            found = true;
+                        }
+                    }
                 }
             }
+            if (!found)
+            {
+                break;
+            }
+            current_position = min_neighbour;
         }
-
-        // The path is constructed in reverse order, so reverse it before returning.
+        // print path
+        for (int i = 0; i <  path.size(); i++) 
+        {
+            std::cout << "point " << path[i].toString() << ":\n";
+        }
         std::reverse(path.begin(), path.end());
         return path;
     }
