@@ -28,7 +28,7 @@ add_executable(map_loader_node src/MapLoader.cpp)
 ament_target_dependencies(map_loader_node rclcpp geometry_msgs mavros_msgs)
 
 add_executable(drone_controll_node src/DroneControll.cpp)
-ament_target_dependencies(drone_controll_node rclcpp geometry_msgs mavros_msgs)
+ament_target_dependencies(drone_controll_node rclcpp geometry_msgs mavros_msgs lrs_interfaces)
 
 add_executable(mission_loader_node src/MissionLoader.cpp)
 ament_target_dependencies(mission_loader_node rclcpp lrs_interfaces)
