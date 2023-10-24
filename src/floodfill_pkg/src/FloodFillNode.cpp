@@ -173,6 +173,13 @@ public:
         Point min_neighbour;
         int min_neighbour_value = std::numeric_limits<int>::max();
         bool found = false;
+
+        int x_len = map.size();
+        int y_len = map[0].size();
+        int z_len = map[0][0].size();
+
+        int deltas[3] = {-1, 0, 1};
+
         while (current_position != goal)
         {
             // std::cout << "point " << current_position.toString() << ":\n";
