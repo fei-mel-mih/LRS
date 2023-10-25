@@ -24,10 +24,18 @@ public:
             10,
             std::bind(&DroneControll::state_cb, this, std::placeholders::_1));
 
+        rmw_qos_profile_t custom_qos = rmw_qos_profile_default;
+        custom_qos.depth = 1;
+        custom_qos.reliability = RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT;
+        auto qos = rclcpp::QoS(rclcpp::QoSInitialization(custom_qos.history, 1), custom_qos);
+
         local_pos_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("mavros/setpoint_position/local", 10);
         arming_client_ = this->create_client<mavros_msgs::srv::CommandBool>("mavros/cmd/arming");
         set_mode_client_ = this->create_client<mavros_msgs::srv::SetMode>("mavros/set_mode");
         takeoff_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/takeoff");
+
+        local_pos_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/mavros/local_position/pose", qos, std::bind(&DroneControll::handleLocalPosition, this, std::placeholders::_1));
 
         floodfill_cleint_ = this->create_client<lrs_interfaces::srv::FloodFill>("floodfill_service");
         mission_client_ = this->create_client<lrs_interfaces::srv::MissionCommand>("mission_loader_service");
@@ -44,39 +52,61 @@ public:
         guided_set_mode_req.custom_mode = "GUIDED";
         while (!set_mode_client_->wait_for_service(1s))
         {
+            rclcpp::spin_some(this->get_node_base_interface());
             if (!rclcpp::ok())
             {
                 RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
-                std::cerr << "Interrupted while waiting for the set_mode service. Exiting." << std::endl;
                 return;
             }
         }
-        auto result = set_mode_client_->async_send_request(
-            std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req) /*,
-             std::bind(&DroneControll::handleModeChange, this, std::placeholders::_1)*/
-        );
+        auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
 
         // TODO: Test if drone state really changed to GUIDED
+        while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(100ms);
+        }
 
-        // Arm and Take-off
+        // Arm
         while (!arming_client_->wait_for_service(1s))
         {
+            rclcpp::spin_some(this->get_node_base_interface());
             if (!rclcpp::ok())
             {
                 RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
-                std::cout << "Interrupted while waiting for the arming service. Exiting." << std::endl;
                 return;
             }
         }
         mavros_msgs::srv::CommandBool::Request arming_request;
         arming_request.value = true;
-        auto aiming_result = arming_client_->async_send_request(
-            std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request),
-            std::bind(&DroneControll::handleDroneArm, this, std::placeholders::_1));
+        auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
+
+        // Take-off
+        while (rclcpp::ok() && !current_state_.armed)
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(100ms);
+        }
+        while (!takeoff_client_->wait_for_service(1s))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
+                return;
+            }
+        }
+        mavros_msgs::srv::CommandTOL::Request takeoff_request;
+        takeoff_request.altitude = 2.5;
+        takeoff_request.min_pitch = 1.0;
+        takeoff_request.yaw = 90.0;
+        auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
         // Load mission plan
         while (!mission_client_->wait_for_service(1s))
         {
+            rclcpp::spin_some(this->get_node_base_interface());
             if (!rclcpp::ok())
             {
                 RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the mission_client service. Exiting...");
@@ -88,8 +118,15 @@ public:
             std::make_shared<lrs_interfaces::srv::MissionCommand::Request>(),
             std::bind(&DroneControll::handleMissionPlan, this, std::placeholders::_1));
 
+        // Check if mission was loaded
+        while (this->commands.size() <= 0)
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            RCLCPP_INFO(this->get_logger(), "Waiting for mission commands...");
+            std::this_thread::sleep_for(100ms);
+        }
+
         // TODO: Implement position controller and mission commands here
-        timer_position_control = this->create_wall_timer(std::chrono::milliseconds(250), std::bind(&DroneControll::handlePositionControll, this));
 
         // Check current drone position
 
@@ -137,59 +174,6 @@ private:
         return;
     }
 
-    void handleModeChange(rclcpp::Client<mavros_msgs::srv::SetMode>::SharedFuture future)
-    {
-        RCLCPP_INFO(get_logger(), "handleModeChange started");
-        try
-        {
-            auto response = future.get();
-            RCLCPP_INFO(this->get_logger(), "Sent mode: %s", response->mode_sent);
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(this->get_logger(), e.what());
-            std::cerr << e.what() << std::endl;
-            return;
-        }
-        RCLCPP_INFO(get_logger(), "handeModeChange ended");
-    }
-
-    void handleDroneArm(rclcpp::Client<mavros_msgs::srv::CommandBool>::SharedFuture future)
-    {
-        RCLCPP_INFO(get_logger(), "handleDroneArm started");
-        try
-        {
-            auto response = future.get();
-
-            RCLCPP_INFO(this->get_logger(), "Armed: %s", std::to_string(response->success).c_str());
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(this->get_logger(), e.what());
-            std::cerr << e.what() << std::endl;
-            return;
-        }
-        RCLCPP_INFO(get_logger(), "handleDroneArm ended");
-    }
-
-    void handleTakeOff(rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedFuture future)
-    {
-        RCLCPP_INFO(get_logger(), "handleTakeOff started");
-        try
-        {
-            auto response = future.get();
-
-            RCLCPP_INFO(this->get_logger(), "Take-off succesfull: %s", std::to_string(response->success).c_str());
-        }
-        catch (const std::exception &e)
-        {
-            RCLCPP_ERROR(this->get_logger(), e.what());
-            std::cerr << e.what() << std::endl;
-            return;
-        }
-        RCLCPP_INFO(get_logger(), "handleTakeOff ended");
-    }
-
     void handlePositionControll()
     {
         auto header = std_msgs::msg::Header();
@@ -206,11 +190,25 @@ private:
         RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", 2.5, 2.5, 1.5);
     }
 
+    void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+    {
+        geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
+
+        // To obtain the position of the drone use this data fields withing the message, please note, that this is the local position of the drone in the NED frame so it is different to the map frame
+        // current_local_pos_.pose.position.x
+        // current_local_pos_.pose.position.y
+        // current_local_pos_.pose.position.z
+        // you can do the same for orientation, but you will not need it for this seminar 
+
+        RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
+    }
+
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_pub_;
     rclcpp::Client<mavros_msgs::srv::CommandBool>::SharedPtr arming_client_;
     rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr set_mode_client_;
     rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedPtr takeoff_client_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_sub_;
     mavros_msgs::msg::State current_state_;
 
     // Timers
