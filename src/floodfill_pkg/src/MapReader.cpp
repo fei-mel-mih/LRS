@@ -1,5 +1,7 @@
 #include "MapReader.h"
 
+#define ISTEST 0
+
 MapReader::MapReader() 
 {
     // Parse filenames -> append absolute path
@@ -12,6 +14,8 @@ MapReader::MapReader()
     for (const auto& filename : filenames) {
         loadFile(filename);
     }
+
+    map = inflateMap(map);
 }
 
 void MapReader::printMap() const 
@@ -115,13 +119,78 @@ void MapReader::loadFile(const std::string& filename)
     map.push_back(currentMap);
 }
 
+std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vector<std::vector<std::vector<int>>>& original_map)
+{
+    std::vector<std::vector<std::vector<int>>> temp_map = original_map;
 
-// int main() 
-// {
-//     MapReader reader;
-//     reader.printMap();
-//     // reader.printHeights();
-//     // reader.getMap();
+   
+    for (size_t i = 0; i < original_map.size(); ++i) 
+    {
+        for (size_t j = 0; j < original_map[i].size(); ++j) 
+        {
+            for (size_t k = 0; k < original_map[i][j].size(); ++k) 
+            {
+                if (original_map[i][j][k] == 1) 
+                {
+                    // Set the neighbors of temp_map[i][j][k] to 1
+                    for (int x = -4; x <= 4; ++x) {
+                        for (int y = -4; y <= 4; ++y) {
+                            for (int z = -4; z <= 4; ++z) {
+                                // Check for out of bounds
+                                if (i + x >= 0 && i + x < original_map.size() &&
+                                    j + y >= 0 && j + y < original_map[i].size() &&
+                                    k + z >= 0 && k + z < original_map[i][j].size()) {
+                                    temp_map[i + x][j + y][k + z] = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return temp_map;
+}
 
-//     return 0;
-// }
+#if ISTEST
+    int main() 
+    {
+
+        MapReader reader;
+        // reader.printHeights();
+        // reader.getMap();
+
+        std::vector<std::vector<std::vector<int>>> original_map = {
+            {
+                {0, 0, 0},
+                {0, 0, 1},
+                {0, 0, 0}
+            },
+            {
+                {0, 0, 0},
+                {0, 0, 0},
+                {0, 0, 0}
+            },
+            {
+                {0, 0, 0},
+                {0, 0, 0},
+                {0, 0, 0}
+            }
+        };
+
+        auto map = reader.inflateMap(original_map);
+
+        // Print the inflated map
+        for (const auto& plane : map) {
+            for (const auto& row : plane) {
+                for (int val : row) {
+                    std::cout << val << " ";
+                }
+                std::cout << "\n";
+            }
+            std::cout << "---\n";
+        }
+
+        return 0;
+    }
+#endif
