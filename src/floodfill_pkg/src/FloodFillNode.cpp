@@ -50,6 +50,7 @@ public:
         Point start;
         Point goal;
         std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
+        map = map_reader.inflateMap(map);
 
         // Handle map boundaries
         int sz_map_z = map.size();

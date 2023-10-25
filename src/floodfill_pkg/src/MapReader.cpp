@@ -1,6 +1,6 @@
 #include "MapReader.h"
 
-#define ISTEST 1
+#define ISTEST 0
 
 MapReader::MapReader() 
 {
