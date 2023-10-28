@@ -43,68 +43,68 @@ public:
         mission_client_ = this->create_client<lrs_interfaces::srv::MissionCommand>("mission_loader_service");
         land_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/land");
 
-        // // Wait for MAVROS SITL connection
-        // while (rclcpp::ok() && !current_state_.connected)
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     std::this_thread::sleep_for(100ms);
-        // }
+        // Wait for MAVROS SITL connection
+        while (rclcpp::ok() && !current_state_.connected)
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(100ms);
+        }
 
-        // // Set mode
-        // mavros_msgs::srv::SetMode::Request guided_set_mode_req;
-        // guided_set_mode_req.custom_mode = "GUIDED";
-        // while (!set_mode_client_->wait_for_service(1s))
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     if (!rclcpp::ok())
-        //     {
-        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
-        //         return;
-        //     }
-        // }
-        // auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
+        // Set mode
+        mavros_msgs::srv::SetMode::Request guided_set_mode_req;
+        guided_set_mode_req.custom_mode = "GUIDED";
+        while (!set_mode_client_->wait_for_service(1s))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
+                return;
+            }
+        }
+        auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
 
-        // // TODO: Test if drone state really changed to GUIDED
-        // while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     std::this_thread::sleep_for(100ms);
-        // }
+        // TODO: Test if drone state really changed to GUIDED
+        while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(100ms);
+        }
 
-        // // Arm
-        // while (!arming_client_->wait_for_service(1s))
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     if (!rclcpp::ok())
-        //     {
-        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
-        //         return;
-        //     }
-        // }
-        // mavros_msgs::srv::CommandBool::Request arming_request;
-        // arming_request.value = true;
-        // auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
+        // Arm
+        while (!arming_client_->wait_for_service(1s))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
+                return;
+            }
+        }
+        mavros_msgs::srv::CommandBool::Request arming_request;
+        arming_request.value = true;
+        auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
 
-        // // Take-off
-        // while (rclcpp::ok() && !current_state_.armed)
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     std::this_thread::sleep_for(100ms);
-        // }
-        // while (!takeoff_client_->wait_for_service(1s))
-        // {
-        //     rclcpp::spin_some(this->get_node_base_interface());
-        //     if (!rclcpp::ok())
-        //     {
-        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
-        //         return;
-        //     }
-        // }
-        // mavros_msgs::srv::CommandTOL::Request takeoff_request;
-        // takeoff_request.altitude = 2.5;
-        // takeoff_request.min_pitch = 1.0;
-        // takeoff_request.yaw = 90.0;
-        // auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
+        // Take-off
+        while (rclcpp::ok() && !current_state_.armed)
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(100ms);
+        }
+        while (!takeoff_client_->wait_for_service(1s))
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            if (!rclcpp::ok())
+            {
+                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
+                return;
+            }
+        }
+        mavros_msgs::srv::CommandTOL::Request takeoff_request;
+        takeoff_request.altitude = 2.5;
+        takeoff_request.min_pitch = 1.0;
+        takeoff_request.yaw = 90.0;
+        auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
         // Load mission plan
         while (!mission_client_->wait_for_service(1s))
