@@ -1,4 +1,5 @@
 #include <regex>
+#include <queue>
 
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -6,6 +7,8 @@
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
 #include <mavros_msgs/srv/command_tol.hpp>
+
+#include "lrs_data_structures.hpp"
 
 #include "lrs_interfaces/msg/command.hpp"
 #include "lrs_interfaces/msg/point.hpp"
@@ -130,11 +133,14 @@ public:
         }
 
         // Convert commands
-        std::vector<ConvertedCommad> converted_commands;
+        std::queue<ConvertedCommad> converted_commands;
         for (const auto &command : this->commands)
         {
-            converted_commands.push_back(commandConverter(command));
+            converted_commands.push(commandConverter(command));
         }
+
+        ConvertedCommad current_command = converted_commands.front();
+        converted_commands.pop();
 
         while (true)
         {
@@ -144,6 +150,20 @@ public:
             // TODO: Implement position controller and mission commands here
 
             // Check current drone position
+            auto position_request = geometry_msgs::msg::PoseStamped();
+            auto position_request_header = std_msgs::msg::Header();
+            position_request_header.frame_id = "drone_control";
+            position_request_header.stamp = this->get_clock()->now();
+            position_request.header = position_request_header;
+            position_request.pose.position.x = -2.5;
+            position_request.pose.position.y = -2.5;
+            position_request.pose.position.z = 2.0;
+
+            if (current_position.position.z > 2.3)
+            {
+                local_pos_pub_->publish(position_request);
+                RCLCPP_INFO(this->get_logger(), "Sending position request");
+            }
 
             // Check if drone is in finish
 
@@ -333,7 +353,7 @@ private:
     void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
     {
         geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
-
+        this->current_position = current_local_pos_.pose;
         // To obtain the position of the drone use this data fields withing the message, please note, that this is the local position of the drone in the NED frame so it is different to the map frame
         // current_local_pos_.pose.position.x
         // current_local_pos_.pose.position.y
@@ -361,6 +381,7 @@ private:
 
     // Variables
     std::vector<lrs_interfaces::msg::Command> commands;
+    geometry_msgs::msg::Pose current_position;
 };
 
 int main(int argc, char **argv)
