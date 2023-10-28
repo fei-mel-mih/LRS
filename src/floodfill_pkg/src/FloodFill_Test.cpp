@@ -1,28 +1,13 @@
-#include <rclcpp/rclcpp.hpp>
-
 #include <queue>
-
 #include "MapReader.h"
-#include "lrs_interfaces/srv/flood_fill.hpp"
+#include <limits>
+#include <math.h>
 
 #define GRID_IN_CM 5.0
 
-class FloodFillNode : public rclcpp::Node
+class FloodFillNode
 {
 public:
-    FloodFillNode() : Node("floodfill_node")
-    {
-        RCLCPP_INFO(this->get_logger(), "Creating FloodFillNode...");
-
-        RCLCPP_INFO(this->get_logger(), "Creating flood fill service");
-        this->service_ = this->create_service<lrs_interfaces::srv::FloodFill>(
-            "floodfill_service",
-            std::bind(&FloodFillNode::flood_fill, this, std::placeholders::_1, std::placeholders::_2));
-        RCLCPP_INFO(this->get_logger(), "Flood fill service created");
-
-        RCLCPP_INFO(this->get_logger(), "FloodFillNode created...");
-    }
-
     struct Point
     {
         int x, y, z;
@@ -42,6 +27,7 @@ public:
             return "Point(x,y,z)=[" + std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z) + "]";
         }
     };
+
 
     bool has_line_of_sight(const Point& start, const Point& end, const std::vector<std::vector<std::vector<int>>>& map) 
     {
@@ -172,7 +158,7 @@ public:
         }
         if (foundIndex == -1)
         {
-            RCLCPP_INFO(this->get_logger(), "Height value of %d is not possible!", value);
+            std::cout << "Value of " << value << " is not possible!" << std::endl;
         }
         return foundIndex;
     }
@@ -196,76 +182,67 @@ public:
         return copy;
     }
 
-    void flood_fill(const lrs_interfaces::srv::FloodFill::Request::SharedPtr request,
-                    const lrs_interfaces::srv::FloodFill::Response::SharedPtr response)
+
+    void flood_fill()
     {
-        RCLCPP_INFO(this->get_logger(), "Starting flood_fill...");
+        std::cout << "Starting flood_fill..." << std::endl;
+
+        
         MapReader map_reader;
 
-        Point start;
-        Point goal;
-        std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
-        std::vector<int> heights = map_reader.getHeights();
-        // map = map_reader.inflateMap(map);
-
-        // Handle map boundaries
-        int sz_map_z = map.size();
-        int sz_map_y = map[0].size();
-        int sz_map_x = map[0][0].size();
-        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_z, sz_map_y, sz_map_x);
-
-        // Check start point
-        if ((request->start_point.x >= sz_map_x || request->start_point.y >= sz_map_y || request->start_point.z >= sz_map_z) ||
-            (request->start_point.x < 0 || request->start_point.y < 0 || request->start_point.z < 0))
-        {
-            RCLCPP_ERROR(this->get_logger(), "Start position out of map [%d,%d,%d]", request->start_point.z, request->start_point.y, request->start_point.x);
-            return;
-        }
-        // Check goal point
-        if ((request->goal_point.x >= sz_map_x || request->goal_point.y >= sz_map_y || request->goal_point.z >= sz_map_z) ||
-            (request->goal_point.x < 0 || request->goal_point.y < 0 || request->goal_point.z < 0))
-        {
-            RCLCPP_ERROR(this->get_logger(), "Goal position out of map [%d,%d,%d]", request->goal_point.z, request->goal_point.y, request->goal_point.x);
-            return;
-        }
+        Point start; Point goal; std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
 
         // We need to recalculate real position to indices
+        std::vector<int> heights = map_reader.getHeights();
+        std::cout << real_to_index(324) << std::endl;
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
-        // std::cout << "[START] Real coords: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
+        start = {25, 160, 115};
+        std::cout << "[START] Real coords: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
         start.x = map_to_height_index(start.x, heights);
         start.y = real_to_index(start.y);
         start.z = real_to_index(start.z);
-        // std::cout << "[START] Indices: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
+        std::cout << "[START] Indices: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
         // [GOAL POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
-        // std::cout << "[GOAL] Real coords: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
+        goal = {156, 1234, 1000};
+        std::cout << "[GOAL] Real coords: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
         goal.x = map_to_height_index(goal.x, heights);
         goal.y = real_to_index(goal.y);
         goal.z = real_to_index(goal.z);
-        // std::cout << "[GOAL] Indices: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
-        
-        start = {request->start_point.z, request->start_point.y, request->start_point.x};
-        std::cout << map[start.x][start.y][start.z] << std::endl;
+        std::cout << "[GOAL] Indices: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
 
-        goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
+
+        std::cout << map[start.x][start.y][start.z] << std::endl;
+        // goal = {2, 1234, 1000};
         std::cout << map[goal.x][goal.y][goal.z] << std::endl;
 
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
-            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+            {1, 0, 0}, {-1, 0, 0},
+            {0, 1, 0}, {0, -1, 0},
+            {0, 0, 1}, {0, 0, -1}
+        };
 
         int x_len = map.size();
         int y_len = map[0].size();
         int z_len = map[0][0].size();
-
+        
         int deltas[3] = {-1, 0, 1};
 
         std::queue<Point> q;
         q.push(goal);
 
-        map[goal.x][goal.y][goal.z] = 2; // example starting value
+        if (map[start.x][start.y][start.z] == 1 || map[goal.x][goal.y][goal.z] == 1)
+        {
+            std::cout << "Path finding is not possible!\nEither start or goal point is in the barrier!" << std::endl;
+            std::cout << "Start value: " << map[start.x][start.y][start.z] << std::endl;
+            std::cout << "Goal value: " << map[goal.x][goal.y][goal.z] << std::endl;
+            return;
+        }
+
+        map[goal.x][goal.y][goal.z] = 2;  // goal is set to 2
 
         while (!q.empty())
-        {
+        {   
             Point current_point = q.front();
             q.pop();
 
@@ -280,11 +257,10 @@ public:
                         if (dx == 0 && dy == 0 && dz == 0)
                         {
                             continue;
-                        }
+                        } 
                         Point neighbor{current_point.x + dx, current_point.y + dy, current_point.z + dz};
 
-                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] == 0)
-                        {
+                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] == 0) {
                             map[neighbor.x][neighbor.y][neighbor.z] = current_value + 1;
                             q.push(neighbor);
                         }
@@ -303,41 +279,17 @@ public:
             // }
         }
 
-        RCLCPP_INFO(this->get_logger(), "Start and Goal are equal: %s", std::to_string(start == goal).c_str());
-
         int start_value = map[start.x][start.y][start.z];
-        if (start_value > 2)
+        if (start_value > 2) 
         {
-            RCLCPP_INFO(this->get_logger(), "After flood_fill...");
-            RCLCPP_INFO(this->get_logger(), "Path found to the start from the goal with a length of %d", start_value - 2);
-        }
-        else
+            std::cout << "After flood_fill..." << std::endl;
+            std::cout << "Path found to the start from the goal with a length of " << start_value - 2 << std::endl;
+        } else 
         {
-            RCLCPP_INFO(this->get_logger(), "Path not found! start_value: %d", start_value);
-            return;
+            std::cout << "Path not found! start_value: " << start_value << std::endl;
         }
+        std::cout << "Finding path" << std::endl;
 
-        std::vector<Point> points = get_flood_fill_path(map, start, goal);
-
-        std::string log_message = "{";
-        for (const Point p : points)
-        {
-            log_message += "[";
-            log_message += std::to_string(p.z);
-            log_message += ",";
-            log_message += std::to_string(p.y);
-            log_message += ",";
-            log_message += std::to_string(p.x);
-            log_message += "]";
-        }
-        log_message += "}";
-        RCLCPP_INFO(this->get_logger(), "Generated path is: %s", log_message.c_str());
-
-        response->points = converToPointList(points);
-    }
-
-    std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point& start, const Point& goal)
-    {
         // Find path
         std::vector<Point> path;
         Point current_position = start;
@@ -345,20 +297,15 @@ public:
         int min_neighbour_value = std::numeric_limits<int>::max();
         bool found;
 
-        int x_len = map.size();
-        int y_len = map[0].size();
-        int z_len = map[0][0].size();
-
-        int deltas[3] = {-1, 0, 1};
-
+        std::cout << "Goal: " << goal.toString() << std::endl;
         while (current_position != goal)
         {
             // std::cout << "point " << current_position.toString() << ":\n";
             path.push_back(current_position);
             int current_value = map[current_position.x][current_position.y][current_position.z];
-            // Set it to the current value so we can find a lesser value
-            int min_neighbour_value = current_value; 
-            found = false; // Reset
+            // std::cout << "Current value: " << current_value << std::endl;
+            int min_neighbour_value = current_value; // Set it to the current value so we can find a lesser value
+            found = false; // reset
             for (int dx : deltas)
             {
                 for (int dy : deltas)
@@ -382,12 +329,13 @@ public:
             }
             if (!found)
             {
-                RCLCPP_ERROR(this->get_logger(), "Path was not found!");
+                std::cout << "Path was not found!" << std::endl;
                 break;
             }
             current_position = min_neighbour;
-        }
+            // std::cout << "Current position: " << current_position.toString() << std::endl;
 
+        }
         // If path was found
         if (found)
         {
@@ -400,72 +348,37 @@ public:
             // {
             //     std::cout << "point " << path[i].toString() << ":\n";
             // }
-            RCLCPP_INFO(this->get_logger(), "Starting simplification of path!");
 
-            // std::cout << "Starting simplification of path" << std::endl;
+            std::cout << "Starting simplification of path" << std::endl;
             std::vector<Point> simplified = simplify_path(path, map);
 
             // print path
-            // for (int i = 0; i <  simplified.size(); i++) 
-            // {
-            //     std::cout << "point " << simplified[i].toString() << ":\n";
-            // }
+            for (int i = 0; i <  simplified.size(); i++) 
+            {
+                std::cout << "point " << simplified[i].toString() << ":\n";
+            }
 
-            // std::cout << "Original path length: " << path.size() << std::endl;
-            // std::cout << "Simplified path length: " << simplified.size() << std::endl;
-
-            RCLCPP_INFO(this->get_logger(), "Original path length: %d", path.size())
-            RCLCPP_INFO(this->get_logger(), "Simplified path length: %d", simplified.size())
+            std::cout << "Original path length: " << path.size() << std::endl;
+            std::cout << "Simplified path length: " << simplified.size() << std::endl;
 
             // now lets reverse the indices to real coordinates
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
 
             // print path
-            // for (int i = 0; i <  real_simplified.size(); i++) 
-            // {
-            //     std::cout << "point " << real_simplified[i].toString() << ":\n";
-            // }
-            return real_simplified;
-        } 
-        else
-        {
-            return {}
-        }
-    }
-
-private:
-    rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
-    std::string mapPath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
-    std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
-
-    const int MAP_HEIGHT_OFFSETS[10] = {25, 75, 80, 100, 125, 150, 175, 180, 200, 225};
-    const int X_GRID_SIZE = 5;
-    const int Y_GRID_SIZE = 5;
-
-    lrs_interfaces::msg::PointList converToPointList(const std::vector<Point> points)
-    {
-        lrs_interfaces::msg::PointList point_list = lrs_interfaces::msg::PointList();
-        std::vector<lrs_interfaces::msg::Point> sub_points;
-
-        for (const Point point : points)
-        {
-            lrs_interfaces::msg::Point p;
-            p.x = point.x;
-            p.y = point.y;
-            p.z = point.z;
-
-            sub_points.push_back(p);
+            for (int i = 0; i <  real_simplified.size(); i++) 
+            {
+                std::cout << "point " << real_simplified[i].toString() << ":\n";
+            }
         }
 
-        point_list.points = sub_points;
-        return point_list;
     }
 };
 
 int main(int argc, char **argv)
 {
-    rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<FloodFillNode>());
-    rclcpp::shutdown();
+    std::cout << "Entering main..." << std::endl;
+    FloodFillNode fn = FloodFillNode();
+    std::cout << "Before flood_fill..." << std::endl;
+    fn.flood_fill();
     return 0;
 }
