@@ -50,7 +50,7 @@ public:
         Point start;
         Point goal;
         std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
-        map = map_reader.inflateMap(map);
+        // map = map_reader.inflateMap(map);
 
         // Handle map boundaries
         int sz_map_z = map.size();
@@ -226,6 +226,10 @@ private:
     rclcpp::Service<lrs_interfaces::srv::FloodFill>::SharedPtr service_;
     std::string mapPath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
     std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
+
+    const int MAP_HEIGHT_OFFSETS[10] = {25, 75, 80, 100, 125, 150, 175, 180, 200, 225};
+    const int X_GRID_SIZE = 5;
+    const int Y_GRID_SIZE = 5;
 
     lrs_interfaces::msg::PointList converToPointList(const std::vector<Point> points)
     {

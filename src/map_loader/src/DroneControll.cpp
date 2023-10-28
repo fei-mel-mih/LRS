@@ -1,5 +1,6 @@
 #include <regex>
 #include <queue>
+#include <cmath>
 
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -67,7 +68,7 @@ public:
         }
         auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
 
-        // TODO: Test if drone state really changed to GUIDED
+        // Test if drone state really changed to GUIDED
         while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
         {
             rclcpp::spin_some(this->get_node_base_interface());
@@ -104,9 +105,7 @@ public:
             }
         }
         mavros_msgs::srv::CommandTOL::Request takeoff_request;
-        takeoff_request.altitude = 2.5;
-        takeoff_request.min_pitch = 1.0;
-        takeoff_request.yaw = 90.0;
+        takeoff_request.min_pitch = 0.25;
         auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
         // Load mission plan
@@ -133,47 +132,45 @@ public:
         }
 
         // Convert commands
-        std::queue<ConvertedCommad> converted_commands;
         for (const auto &command : this->commands)
         {
-            converted_commands.push(commandConverter(command));
+            this->converted_commands.push(commandConverter(command));
         }
 
-        ConvertedCommad current_command = converted_commands.front();
+        this->current_command = converted_commands.front();
         converted_commands.pop();
 
-        while (true)
+        // Get initial floodfill points
+        while (!floodfill_cleint_->wait_for_service(1s))
         {
-            // Spin thread for some time
             rclcpp::spin_some(this->get_node_base_interface());
-
-            // TODO: Implement position controller and mission commands here
-
-            // Check current drone position
-            auto position_request = geometry_msgs::msg::PoseStamped();
-            auto position_request_header = std_msgs::msg::Header();
-            position_request_header.frame_id = "drone_control";
-            position_request_header.stamp = this->get_clock()->now();
-            position_request.header = position_request_header;
-            position_request.pose.position.x = -2.5;
-            position_request.pose.position.y = -2.5;
-            position_request.pose.position.z = 2.0;
-
-            if (current_position.position.z > 2.3)
+            if (!rclcpp::ok())
             {
-                local_pos_pub_->publish(position_request);
-                RCLCPP_INFO(this->get_logger(), "Sending position request");
+                RCLCPP_ERROR(this->get_logger(), "Interupted while waiting for foodfill client. Exiting...");
+                return;
             }
-
-            // Check if drone is in finish
-
-            // Calculate offsets
-
-            // Set new desired position
-
-            // Sleep some time
-            std::this_thread::sleep_for(100ms);
         }
+        lrs_interfaces::srv::FloodFill::Request initial_floodfill_request;
+
+        lrs_interfaces::msg::Point start_point;
+        start_point.x = current_position.position.x;
+        start_point.y = current_position.position.y;
+        start_point.z = current_position.position.z;
+
+        lrs_interfaces::msg::Point goal_point;
+        goal_point.x = current_command.x;
+        goal_point.y = current_command.y;
+        goal_point.z = current_command.z;
+
+        initial_floodfill_request.start_point = start_point;
+        initial_floodfill_request.goal_point = goal_point;
+
+        auto floofill_future = this->floodfill_cleint_->async_send_request(std::make_shared<lrs_interfaces::srv::FloodFill::Request>(initial_floodfill_request));
+        retrieveNewFloodFillPoints(floofill_future);
+
+        // Start position handler timer
+        // timer_position_control = this->create_wall_timer(500ms, std::bind(&DroneControll::handlePositionControll, this));
+        RCLCPP_INFO(this->get_logger(), "--------------------------------------------Controlling started--------------------------------------------");
     }
 
 private:
@@ -190,27 +187,28 @@ private:
         TAKEOFF,
         LAND,
         LANDTAKEOFF,
-        YAW
+        YAW,
+        NONE
     };
 
     // Structs
-    struct ConvertedCommad
+    struct ConvertedCommand
     {
         float x;
         float y;
         float z;
         PRECISION_ENUM precision = PRECISION_ENUM::NONE;
-        TASK_ENUM task;
+        TASK_ENUM task = TASK_ENUM::NONE;
         int yaw_value = -1;
 
-        bool operator!=(const ConvertedCommad &other)
+        bool operator!=(const ConvertedCommand &other)
         {
             return (x != other.x) || (y != other.y) || (z != other.z) ||
                    (precision != other.precision) || (task != other.task) ||
                    (yaw_value != other.yaw_value);
         }
 
-        bool operator==(const ConvertedCommad &other)
+        bool operator==(const ConvertedCommand &other)
         {
             return (x == other.x) && (y == other.y) && (z == other.z) &&
                    (precision == other.precision) && (task == other.task) &&
@@ -220,10 +218,10 @@ private:
 
     // Methods
 
-    ConvertedCommad commandConverter(const lrs_interfaces::msg::Command command)
+    ConvertedCommand commandConverter(const lrs_interfaces::msg::Command command)
     {
         std::string task = command.task;
-        ConvertedCommad converted_command;
+        ConvertedCommand converted_command;
 
         // Parse command position
         converted_command.x = command.x;
@@ -279,6 +277,10 @@ private:
             {
                 RCLCPP_ERROR(this->get_logger(), "Cannot parse task as it doesn't match regular expresion");
             }
+        }
+        else
+        {
+            converted_command.task = TASK_ENUM::NONE;
         }
         return converted_command;
     }
@@ -336,15 +338,100 @@ private:
 
     void handlePositionControll()
     {
+        // TODO: Check if current goal is reached
+        bool b_checkpoint_reached;
+
+        geometry_msgs::msg::Pose goal_pose;
+        goal_pose.position.x = current_command.x;
+        goal_pose.position.y = current_command.y;
+        goal_pose.position.z = current_command.z;
+
+        switch (current_command.precision)
+        {
+        case PRECISION_ENUM::HARD:
+            b_checkpoint_reached = isLocationInsideRegion(current_position, goal_pose, HARD_PRECISION);
+            break;
+        case PRECISION_ENUM::SOFT:
+            b_checkpoint_reached = isLocationInsideRegion(current_position, goal_pose, SOFT_PRECISION);
+            break;
+        }
+
+        // New checkpoint for ardu-pilot
+        auto final_pose = geometry_msgs::msg::Pose();
+
+        if (b_checkpoint_reached)
+        {
+            if (current_command.task == TASK_ENUM::TAKEOFF)
+            {
+            }
+            else if (current_command.task == TASK_ENUM::YAW)
+            {
+            }
+            else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
+            {
+            }
+            else if (current_command.task == TASK_ENUM::LAND)
+            {
+            }
+            else if (current_command.task == TASK_ENUM::NONE)
+            {
+                current_command = this->converted_commands.front();
+                this->converted_commands.pop();
+            }
+            // TODO: Generate new floodfill points
+            while (!this->floodfill_cleint_->wait_for_service(1s))
+            {
+                rclcpp::spin_some(this->get_node_base_interface());
+                if (!rclcpp::ok())
+                {
+                    RCLCPP_ERROR(this->get_logger(), "Interupted while waiting for floodFill_service");
+                    return;
+                }
+            }
+            lrs_interfaces::srv::FloodFill::Request new_ff_request;
+
+            lrs_interfaces::msg::Point start_point;
+            start_point.x = current_position.position.x;
+            start_point.y = current_position.position.y;
+            start_point.z = current_position.position.z;
+
+            lrs_interfaces::msg::Point goal_point;
+            goal_point.x = current_command.x;
+            goal_point.y = current_command.y;
+            goal_point.z = current_command.z;
+
+            new_ff_request.start_point = start_point;
+            new_ff_request.goal_point = goal_point;
+            auto new_ff_future = floodfill_cleint_->async_send_request(std::make_shared<lrs_interfaces::srv::FloodFill::Request>(new_ff_request));
+            retrieveNewFloodFillPoints(new_ff_future);
+        }
+        else
+        {
+            geometry_msgs::msg::Pose ff_goal_pose;
+            ff_goal_pose.position.x = this->floodfill_points.front().x;
+            ff_goal_pose.position.y = this->floodfill_points.front().y;
+            ff_goal_pose.position.z = this->floodfill_points.front().z;
+
+            bool b_ff_reached = isLocationInsideRegion(current_position, ff_goal_pose, HARD_PRECISION);
+
+            if (b_ff_reached)
+                this->floodfill_points.pop();
+
+            final_pose.position.x = this->floodfill_points.front().x;
+            final_pose.position.y = this->floodfill_points.front().y;
+            final_pose.position.z = this->floodfill_points.front().z;
+        }
+
+        // TODO: calculate offsets
+        auto message = geometry_msgs::msg::PoseStamped();
         auto header = std_msgs::msg::Header();
         header.frame_id = "position_control";
         header.stamp = this->get_clock()->now();
 
-        auto message = geometry_msgs::msg::PoseStamped();
         message.header = header;
-        message.pose.position.x = 2.5;
-        message.pose.position.y = 2.5;
-        message.pose.position.z = 1.5;
+        message.pose.position.x = 12.0;
+        message.pose.position.y = 1.5;
+        message.pose.position.z = 2.5;
 
         local_pos_pub_->publish(message);
         RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", 2.5, 2.5, 1.5);
@@ -361,6 +448,53 @@ private:
         // you can do the same for orientation, but you will not need it for this seminar
 
         RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
+    }
+
+    void handleFloodFill(rclcpp::Client<lrs_interfaces::srv::FloodFill>::SharedFuture future)
+    {
+        RCLCPP_INFO(this->get_logger(), "handleFloodFill started");
+        try
+        {
+            auto response = future.get();
+            std::move(response->points.points.begin(), response->points.points.end(), std::front_inserter(this->floodfill_points));
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Floodfill client failed");
+            return;
+        }
+    }
+
+    bool isLocationInsideRegion(const geometry_msgs::msg::Pose &current, const geometry_msgs::msg::Pose &goal, float offset)
+    {
+        float distance = std::sqrt(
+            std::pow(current.position.x - goal.position.x, 2) +
+            std::pow(current.position.y - goal.position.y, 2) +
+            std::pow(current.position.z - goal.position.z, 2));
+
+        // Check if the distance is less than or equal to the offset
+        return distance <= offset;
+    }
+
+    void retrieveNewFloodFillPoints(rclcpp::Client<lrs_interfaces::srv::FloodFill>::SharedFuture future)
+    {
+        while (rclcpp::ok())
+            {
+                rclcpp::spin_some(this->get_node_base_interface());
+
+                auto status = future.wait_for(100ms);
+                if (status == std::future_status::ready)
+                {
+                    auto response = future.get();
+
+                    if (response != nullptr)
+                    {
+                        std::move(response->points.points.begin(), response->points.points.end(), this->floodfill_points);
+                        break;
+                    }
+                    RCLCPP_INFO(this->get_logger(), "Waiting for new floodfill points");
+                }
+            }
     }
 
     rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
@@ -382,6 +516,13 @@ private:
     // Variables
     std::vector<lrs_interfaces::msg::Command> commands;
     geometry_msgs::msg::Pose current_position;
+    ConvertedCommand current_command;
+    std::queue<ConvertedCommand> converted_commands;
+    std::queue<lrs_interfaces::msg::Point> floodfill_points;
+
+    // Precisions
+    const float SOFT_PRECISION = 0.05f; // 5 cm
+    const float HARD_PRECISION = 0.2f;  // 20 cm
 };
 
 int main(int argc, char **argv)

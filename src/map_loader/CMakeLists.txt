@@ -24,17 +24,13 @@ find_package(lrs_interfaces REQUIRED)
 
 include_directories(include)
 
-add_executable(map_loader_node src/MapLoader.cpp)
-ament_target_dependencies(map_loader_node rclcpp geometry_msgs mavros_msgs)
-
 add_executable(drone_controll_node src/DroneControll.cpp)
 ament_target_dependencies(drone_controll_node rclcpp geometry_msgs mavros_msgs lrs_interfaces)
 
 add_executable(mission_loader_node src/MissionLoader.cpp)
 ament_target_dependencies(mission_loader_node rclcpp lrs_interfaces)
 
-install(TARGETS 
-  map_loader_node
+install(TARGETS
   drone_controll_node
   mission_loader_node
   DESTINATION lib/${PROJECT_NAME}
