@@ -1,3 +1,5 @@
+#include <regex>
+
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <mavros_msgs/msg/state.hpp>
@@ -39,69 +41,70 @@ public:
 
         floodfill_cleint_ = this->create_client<lrs_interfaces::srv::FloodFill>("floodfill_service");
         mission_client_ = this->create_client<lrs_interfaces::srv::MissionCommand>("mission_loader_service");
+        land_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/land");
 
-        // Wait for MAVROS SITL connection
-        while (rclcpp::ok() && !current_state_.connected)
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            std::this_thread::sleep_for(100ms);
-        }
+        // // Wait for MAVROS SITL connection
+        // while (rclcpp::ok() && !current_state_.connected)
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     std::this_thread::sleep_for(100ms);
+        // }
 
-        // Set mode
-        mavros_msgs::srv::SetMode::Request guided_set_mode_req;
-        guided_set_mode_req.custom_mode = "GUIDED";
-        while (!set_mode_client_->wait_for_service(1s))
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            if (!rclcpp::ok())
-            {
-                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
-                return;
-            }
-        }
-        auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
+        // // Set mode
+        // mavros_msgs::srv::SetMode::Request guided_set_mode_req;
+        // guided_set_mode_req.custom_mode = "GUIDED";
+        // while (!set_mode_client_->wait_for_service(1s))
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     if (!rclcpp::ok())
+        //     {
+        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
+        //         return;
+        //     }
+        // }
+        // auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
 
-        // TODO: Test if drone state really changed to GUIDED
-        while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            std::this_thread::sleep_for(100ms);
-        }
+        // // TODO: Test if drone state really changed to GUIDED
+        // while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     std::this_thread::sleep_for(100ms);
+        // }
 
-        // Arm
-        while (!arming_client_->wait_for_service(1s))
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            if (!rclcpp::ok())
-            {
-                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
-                return;
-            }
-        }
-        mavros_msgs::srv::CommandBool::Request arming_request;
-        arming_request.value = true;
-        auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
+        // // Arm
+        // while (!arming_client_->wait_for_service(1s))
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     if (!rclcpp::ok())
+        //     {
+        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
+        //         return;
+        //     }
+        // }
+        // mavros_msgs::srv::CommandBool::Request arming_request;
+        // arming_request.value = true;
+        // auto aiming_result = arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
 
-        // Take-off
-        while (rclcpp::ok() && !current_state_.armed)
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            std::this_thread::sleep_for(100ms);
-        }
-        while (!takeoff_client_->wait_for_service(1s))
-        {
-            rclcpp::spin_some(this->get_node_base_interface());
-            if (!rclcpp::ok())
-            {
-                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
-                return;
-            }
-        }
-        mavros_msgs::srv::CommandTOL::Request takeoff_request;
-        takeoff_request.altitude = 2.5;
-        takeoff_request.min_pitch = 1.0;
-        takeoff_request.yaw = 90.0;
-        auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
+        // // Take-off
+        // while (rclcpp::ok() && !current_state_.armed)
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     std::this_thread::sleep_for(100ms);
+        // }
+        // while (!takeoff_client_->wait_for_service(1s))
+        // {
+        //     rclcpp::spin_some(this->get_node_base_interface());
+        //     if (!rclcpp::ok())
+        //     {
+        //         RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
+        //         return;
+        //     }
+        // }
+        // mavros_msgs::srv::CommandTOL::Request takeoff_request;
+        // takeoff_request.altitude = 2.5;
+        // takeoff_request.min_pitch = 1.0;
+        // takeoff_request.yaw = 90.0;
+        // auto takeoff_future = takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
         // Load mission plan
         while (!mission_client_->wait_for_service(1s))
@@ -126,22 +129,159 @@ public:
             std::this_thread::sleep_for(100ms);
         }
 
-        // TODO: Implement position controller and mission commands here
+        // Convert commands
+        std::vector<ConvertedCommad> converted_commands;
+        for (const auto &command : this->commands)
+        {
+            converted_commands.push_back(commandConverter(command));
+        }
 
-        // Check current drone position
+        while (true)
+        {
+            // Spin thread for some time
+            rclcpp::spin_some(this->get_node_base_interface());
 
-        // Check if drone is in finish
+            // TODO: Implement position controller and mission commands here
 
-        // Calculate offsets
+            // Check current drone position
 
-        // Set new desired position
+            // Check if drone is in finish
+
+            // Calculate offsets
+
+            // Set new desired position
+
+            // Sleep some time
+            std::this_thread::sleep_for(100ms);
+        }
     }
 
 private:
+    // Enums
+    enum PRECISION_ENUM
+    {
+        SOFT,
+        HARD,
+        NONE
+    };
+
+    enum TASK_ENUM
+    {
+        TAKEOFF,
+        LAND,
+        LANDTAKEOFF,
+        YAW
+    };
+
+    // Structs
+    struct ConvertedCommad
+    {
+        float x;
+        float y;
+        float z;
+        PRECISION_ENUM precision = PRECISION_ENUM::NONE;
+        TASK_ENUM task;
+        int yaw_value = -1;
+
+        bool operator!=(const ConvertedCommad &other)
+        {
+            return (x != other.x) || (y != other.y) || (z != other.z) ||
+                   (precision != other.precision) || (task != other.task) ||
+                   (yaw_value != other.yaw_value);
+        }
+
+        bool operator==(const ConvertedCommad &other)
+        {
+            return (x == other.x) && (y == other.y) && (z == other.z) &&
+                   (precision == other.precision) && (task == other.task) &&
+                   (yaw_value == other.yaw_value);
+        }
+    };
+
+    // Methods
+
+    ConvertedCommad commandConverter(const lrs_interfaces::msg::Command command)
+    {
+        std::string task = command.task;
+        ConvertedCommad converted_command;
+
+        // Parse command position
+        converted_command.x = command.x;
+        converted_command.y = command.y;
+        converted_command.z = command.z;
+
+        // Parse precision
+        PRECISION_ENUM precision = PRECISION_ENUM::NONE;
+        if (command.precision == "soft")
+        {
+            precision = PRECISION_ENUM::SOFT;
+        }
+        if (command.precision == "hard")
+        {
+            precision = PRECISION_ENUM::HARD;
+        }
+        converted_command.precision = precision;
+
+        // Parse task
+        if (task == "takeoff")
+        {
+            converted_command.task = TASK_ENUM::TAKEOFF;
+        }
+        else if (task == "land")
+        {
+            converted_command.task = TASK_ENUM::LAND;
+        }
+        else if (task == "landtakeoff")
+        {
+            converted_command.task = TASK_ENUM::LANDTAKEOFF;
+        }
+        else if (task.find("yaw") == 0)
+        {
+            // Create a regular expression pattern to match the string.
+            std::regex pattern(R"(yaw(\d+))");
+            // Use the regex_search() function to search for a match in the string.
+            std::smatch match;
+            if (std::regex_search(task, match, pattern))
+            {
+                // Get the captured group containing the number value.
+                std::string number_value = match[1];
+
+                // Convert the captured group to an integer using the stoi() function.
+                int number = std::stoi(number_value);
+
+                // Print the number value.
+                RCLCPP_INFO(this->get_logger(), "Parsed yaw value as %d", number);
+
+                converted_command.task = TASK_ENUM::YAW;
+                converted_command.yaw_value = number;
+            }
+            else
+            {
+                RCLCPP_ERROR(this->get_logger(), "Cannot parse task as it doesn't match regular expresion");
+            }
+        }
+        return converted_command;
+    }
+
     void state_cb(const mavros_msgs::msg::State::SharedPtr msg)
     {
         current_state_ = *msg;
         RCLCPP_INFO(this->get_logger(), "Current State: %s", current_state_.mode.c_str());
+    }
+
+    void handleLanding(rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedFuture future)
+    {
+        RCLCPP_INFO(this->get_logger(), "handleLanding started");
+        try
+        {
+            auto landing_response = future.get();
+            RCLCPP_INFO(this->get_logger(), "Landing request sended: %s", std::to_string(landing_response->success));
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Error in handleLanding: %s", e.what());
+            return;
+        }
     }
 
     void handleMissionPlan(rclcpp::Client<lrs_interfaces::srv::MissionCommand>::SharedFuture future)
@@ -198,7 +338,7 @@ private:
         // current_local_pos_.pose.position.x
         // current_local_pos_.pose.position.y
         // current_local_pos_.pose.position.z
-        // you can do the same for orientation, but you will not need it for this seminar 
+        // you can do the same for orientation, but you will not need it for this seminar
 
         RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
     }
@@ -210,6 +350,7 @@ private:
     rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedPtr takeoff_client_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_sub_;
     mavros_msgs::msg::State current_state_;
+    rclcpp::Client<mavros_msgs::srv::CommandTOL>::SharedPtr land_client_;
 
     // Timers
     rclcpp::TimerBase::SharedPtr timer_position_control;
