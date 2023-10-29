@@ -179,7 +179,7 @@ public:
 
         RCLCPP_INFO(
             this->get_logger(),
-            "Retreiveing point for path start=[%f,%f,%f] : goal=[%f,%f,%f]",
+            "Retreiveing point for path start=[%d,%d,%d] : goal=[%d,%d,%d]",
             start_point.x, start_point.y, start_point.z,
             goal_point.x, goal_point.y, goal_point.z);
 
@@ -204,6 +204,13 @@ public:
             RCLCPP_INFO(this->get_logger(), "Drone taking off...");
             std::this_thread::sleep_for(250ms);
         }
+
+        if (this->floodfill_points.size() <= 0)
+        {
+            RCLCPP_ERROR(this->get_logger(), "Path was not found for requested goals");
+            return;
+        }
+        RCLCPP_INFO(get_logger(), "Length of floodfill path is %d", this->floodfill_points.size());
 
         RCLCPP_INFO(this->get_logger(), "----------------------- Controlling started -----------------------");
     }
@@ -447,17 +454,141 @@ private:
             // LAND AND TAKEOFF
             else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
             {
+                // LAND
+                while (!this->takeoff_client_->wait_for_service(1s))
+                {
+                    rclcpp::spin_some(get_node_base_interface());
+                    if (!rclcpp::ok())
+                    {
+                        RCLCPP_ERROR(get_logger(), "Interupted while wainting for takeoff_client.");
+                        return;
+                    }
+                }
+                mavros_msgs::srv::CommandTOL::Request land_request;
+                takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+
+                while (rclcpp::ok())
+                {
+                    rclcpp::spin_some(this->get_node_base_interface());
+                    if (!current_state_.armed)
+                    {
+                        RCLCPP_INFO(get_logger(), "Drone landed");
+                        break;
+                    }
+                    RCLCPP_INFO(get_logger(), "Drone landing");
+                    std::this_thread::sleep_for(250ms);
+                }
+
+                // ARM
+                while (!arming_client_->wait_for_service(1s))
+                {
+                    rclcpp::spin_some(this->get_node_base_interface());
+                    if (!rclcpp::ok())
+                    {
+                        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the arming service. Exiting.");
+                        return;
+                    }
+                }
+                mavros_msgs::srv::CommandBool::Request arming_request;
+                arming_request.value = true;
+                arming_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandBool::Request>(arming_request));
+
+                while (rclcpp::ok())
+                {
+                    rclcpp::spin_some(get_node_base_interface());
+                    if (current_state_.armed)
+                    {
+                        RCLCPP_INFO(get_logger(), "Drone armed");
+                        break;
+                    }
+                    RCLCPP_INFO(get_logger(), "Drone arming");
+                    std::this_thread::sleep_for(250ms);
+                }
+
+                // TAKE-OFF
+                while (!takeoff_client_->wait_for_service(1s))
+                {
+                    rclcpp::spin_some(this->get_node_base_interface());
+                    if (!rclcpp::ok())
+                    {
+                        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the take-off service. Exiting.");
+                        return;
+                    }
+                }
+                mavros_msgs::srv::CommandTOL::Request takeoff_request;
+                takeoff_request.altitude = TAKEOFF_ALTITUDE;
+                takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
+
+                // Eval precision
+                float current_precision;
+                switch (current_command.precision)
+                {
+                case PRECISION_ENUM::HARD:
+                    current_precision = HARD_PRECISION;
+                    break;
+                case PRECISION_ENUM::SOFT:
+                    current_precision = SOFT_PRECISION;
+                    break;
+                default:
+                    current_precision = SOFT_PRECISION;
+                    break;
+                }
+
+                while (rclcpp::ok())
+                {
+                    rclcpp::spin_some(get_node_base_interface());
+                    bool b_z_height = (current_position.position.z >= current_command.z - current_precision) &&
+                                      (current_position.position.z <= current_command.z + current_precision);
+
+                    if (b_z_height)
+                    {
+                        RCLCPP_INFO(get_logger(), "Drone took off");
+                        break;
+                    }
+
+                    RCLCPP_INFO(get_logger(), "Drone taking off");
+                    std::this_thread::sleep_for(250ms);
+                }
             }
             // LAND
             else if (current_command.task == TASK_ENUM::LAND)
             {
+                // LAND
+                while (!this->takeoff_client_->wait_for_service(1s))
+                {
+                    rclcpp::spin_some(get_node_base_interface());
+                    if (!rclcpp::ok())
+                    {
+                        RCLCPP_ERROR(get_logger(), "Interupted while wainting for takeoff_client.");
+                        return;
+                    }
+                }
+                mavros_msgs::srv::CommandTOL::Request land_request;
+                takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+
+                while (rclcpp::ok())
+                {
+                    rclcpp::spin_some(this->get_node_base_interface());
+                    if (!current_state_.armed)
+                    {
+                        RCLCPP_INFO(get_logger(), "Drone landed");
+                        break;
+                    }
+                    RCLCPP_INFO(get_logger(), "Drone landing");
+                    std::this_thread::sleep_for(250ms);
+                }
             }
             // DO NOTHING
             else if (current_command.task == TASK_ENUM::NONE)
             {
-                current_command = this->converted_commands.front();
-                this->converted_commands.pop();
+                // NOOP
             }
+
+            // Pop ended command
+            current_command = this->converted_commands.front();
+            this->converted_commands.pop();
+            RCLCPP_INFO(get_logger(), "Command ended. Command poped form queue");
+
             // Generate new floodfill points
             while (!this->floodfill_cleint_->wait_for_service(1s))
             {
@@ -485,7 +616,7 @@ private:
 
             RCLCPP_INFO(
                 this->get_logger(),
-                "Retreiveing point for path start=[%f,%f,%f] : goal=[%f,%f,%f]",
+                "Retreiveing point for path start=[%d,%d,%d] : goal=[%d,%d,%d]",
                 start_point.x, start_point.y, start_point.z,
                 goal_point.x, goal_point.y, goal_point.z);
 
@@ -502,7 +633,10 @@ private:
             bool b_ff_reached = isLocationInsideRegion(current_position, ff_goal_pose, HARD_PRECISION);
 
             if (b_ff_reached)
+            {
                 this->floodfill_points.pop();
+                RCLCPP_INFO(this->get_logger(), "Flood fill point poped");
+            }
 
             final_pose.position.x = this->floodfill_points.front().x;
             final_pose.position.y = this->floodfill_points.front().y;
