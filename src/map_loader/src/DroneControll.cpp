@@ -395,6 +395,9 @@ private:
 
 	void handlePositionControll()
 	{
+		RCLCPP_INFO(get_logger(), "Current drone position x=%f y=%f z=%f",
+					current_position.position.x, current_position.position.y, current_position.position.z);
+
 		// Check if current goal is reached
 		bool b_checkpoint_reached;
 
@@ -402,6 +405,10 @@ private:
 		goal_pose.position.x = current_command.x;
 		goal_pose.position.y = current_command.y;
 		goal_pose.position.z = current_command.z;
+
+		RCLCPP_INFO(get_logger(), "Comparing command positions: command[%f,%f,%f] == drone[%f,%f,%f]",
+					goal_pose.position.x, goal_pose.position.y, goal_pose.position.z,
+					current_position.position.x, current_position.position.y, current_position.position.z);
 
 		switch (current_command.precision)
 		{
@@ -502,7 +509,7 @@ private:
 
 					RCLCPP_INFO(get_logger(), "Drone rotating");
 
-					std::this_thread::sleep_for(250ms);					
+					std::this_thread::sleep_for(250ms);
 				}
 			}
 			// LAND AND TAKEOFF
@@ -680,9 +687,13 @@ private:
 		else
 		{
 			geometry_msgs::msg::Pose ff_goal_pose;
-			ff_goal_pose.position.x = this->floodfill_points.front().z / 100;
-			ff_goal_pose.position.y = this->floodfill_points.front().y / 100;
-			ff_goal_pose.position.z = this->floodfill_points.front().x / 100;
+			ff_goal_pose.position.x = this->floodfill_points.front().z / 100.0;
+			ff_goal_pose.position.y = this->floodfill_points.front().y / 100.0;
+			ff_goal_pose.position.z = this->floodfill_points.front().x / 100.0;
+
+			RCLCPP_INFO(get_logger(), "Comparing positions: goal[%f,%f,%f] == drone[%f,%f,%f]",
+						ff_goal_pose.position.x, ff_goal_pose.position.y, ff_goal_pose.position.z,
+						current_position.position.x, current_position.position.y, current_position.position.z);
 
 			bool b_ff_reached = isLocationInsideRegion(current_position, ff_goal_pose, HARD_PRECISION);
 
@@ -697,6 +708,9 @@ private:
 		final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
 		final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
 		final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
+
+		RCLCPP_INFO(get_logger(), "Flood fill points: x=%f y=%f z=%f",
+					(this->floodfill_points.front().x / 100.0), (this->floodfill_points.front().y / 100.0), (this->floodfill_points.front().z / 100.0));
 
 		auto message = geometry_msgs::msg::PoseStamped();
 		auto header = std_msgs::msg::Header();
