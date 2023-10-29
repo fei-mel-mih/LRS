@@ -233,19 +233,17 @@ public:
         // Conversion of local drone coordinations
         {
             Point converted_start = {};
-            // From drone CS to map CS
-            // converted_start.y = start.z + 280;
-            // converted_start.z = 366 - 2 - 31 + start.y;
-            // converted_start.x = start.x;
-
-            converted_start.z = start.z + 233;
-            converted_start.y = start.y + 280;
+            converted_start.z = start.z + 8;
+            converted_start.y = 263 - start.y;
             converted_start.x = start.x;
 
             start = converted_start;
 
             RCLCPP_INFO(get_logger(), "Drone to map = [%d,%d,%d]",
                         converted_start.x, converted_start.y, converted_start.z);
+
+            RCLCPP_INFO(get_logger(), "Drone to map in cm = [%d,%d,%d]",
+                        converted_start.x * 5, converted_start.y * 5, converted_start.z * 5);
         }
 
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
@@ -261,14 +259,14 @@ public:
             // converted_goal.y = (sz_map_y - MAP_HEIGHT_PIXEL_OFFSET) - goal.y;
             // converted_goal.x = goal.x;
 
-            converted_goal.z = 263 - goal.y;
-            converted_goal.y = goal.z + 8;
+            converted_goal.z = goal.z + 8;
+            converted_goal.y = 263 - goal.y;
             converted_goal.x = goal.x;
 
             goal = converted_goal;
 
-            RCLCPP_INFO(get_logger(), "Global to map = [%d,%d,%d]",
-                        converted_goal.x, converted_goal.y, converted_goal.z);
+            RCLCPP_INFO(get_logger(), "Global to map in cm = [%d,%d,%d]",
+                        converted_goal.x * 5, converted_goal.y * 5, converted_goal.z * 5);
         }
 
 
