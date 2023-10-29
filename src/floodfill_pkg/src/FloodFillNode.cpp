@@ -6,7 +6,11 @@
 #include "MapReader.h"
 #include "lrs_interfaces/srv/flood_fill.hpp"
 
-#define GRID_IN_CM 5.0
+#define GRID_IN_CM              5.0
+#define DRONE_GLOBAL_START_X    14.f
+#define DRONE_GLOBAL_START_Y    1.51f
+#define MAP_HEIGHT_PIXEL_OFFSET 25
+#define MAP_WIDTH_PIXEL_OFFSET  8
 
 class FloodFillNode : public rclcpp::Node
 {
@@ -215,22 +219,20 @@ public:
         std::vector<int> heights = map_reader.getHeights();
         // map = map_reader.inflateMap(map);
 
-        start = {request->start_point.z, request->start_point.y, request->start_point.x};
+        // Conversion to right coordination system
+        
+
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
-        // std::cout << "[START] Real coords: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
+        start = {request->start_point.z, request->start_point.y, request->start_point.x};
         start.x = map_to_height_index((float)start.x, heights);
         start.y = real_to_index((float)start.y);
         start.z = real_to_index((float)start.z);
-        // std::cout << "[START] Indices: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
 
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
-        // [GOAL POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
-        // std::cout << "[GOAL] Real coords: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
         goal.x = map_to_height_index((float)goal.x, heights);
         goal.y = real_to_index((float)goal.y);
         goal.z = real_to_index((float)goal.z);
-        // std::cout << "[GOAL] Indices: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
 
         // Handle map boundaries
         int sz_map_x = map.size();
@@ -415,38 +417,14 @@ public:
         {
             // Add goal to path
             path.push_back(goal);
-
-            // print path
-            // std::cout << "Original found path: " << std::endl;
-            // for (int i = 0; i <  path.size(); i++)
-            // {
-            //     std::cout << "point " << path[i].toString() << ":\n";
-            // }
             RCLCPP_INFO(this->get_logger(), "Starting simplification of path!");
-
-            // std::cout << "Starting simplification of path" << std::endl;
             std::vector<Point> simplified = simplify_path(path, map);
-
-            // print path
-            // for (int i = 0; i <  simplified.size(); i++)
-            // {
-            //     std::cout << "point " << simplified[i].toString() << ":\n";
-            // }
-
-            // std::cout << "Original path length: " << path.size() << std::endl;
-            // std::cout << "Simplified path length: " << simplified.size() << std::endl;
 
             RCLCPP_INFO(this->get_logger(), "Original path length: %d", path.size());
             RCLCPP_INFO(this->get_logger(), "Simplified path length: %d", simplified.size());
 
             // now lets reverse the indices to real coordinates
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
-
-            // print path
-            // for (int i = 0; i <  real_simplified.size(); i++)
-            // {
-            //     std::cout << "point " << real_simplified[i].toString() << ":\n";
-            // }
             RCLCPP_INFO(get_logger(), "Floodfill ended");
             return real_simplified;
         }
