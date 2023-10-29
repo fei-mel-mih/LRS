@@ -269,7 +269,6 @@ public:
                         converted_goal.x * 5, converted_goal.y * 5, converted_goal.z * 5);
         }
 
-
         // Handle map boundaries
         RCLCPP_INFO(this->get_logger(), "Converted start to indexes: [%d,%d,%d]", start.x, start.y, start.z);
         RCLCPP_INFO(this->get_logger(), "Converted goal to indexes: [%d,%d,%d]", goal.x, goal.y, goal.z);
@@ -376,7 +375,23 @@ public:
         log_message += "}";
         RCLCPP_INFO(this->get_logger(), "Generated path is: %s", log_message.c_str());
 
-        response->points = converToPointList(points);
+        lrs_interfaces::msg::PointList pList = converToPointList(points);
+
+        std::string cv_points = "";
+        for (const auto &p : pList.points)
+        {
+            cv_points += "[";
+            cv_points += std::to_string(p.x) + ", ";
+            cv_points += std::to_string(p.y) + ", ";
+            cv_points += std::to_string(p.z) + ", ";
+            cv_points += "]\n";
+        }
+        RCLCPP_INFO(get_logger(), "Final converted points: %s", cv_points.c_str());
+
+        // Tu sa ta posrata vec z nejakeho dovodu nenaplniiii
+        response->points = pList;
+        response->points.points = pList.points;
+        return;
     }
 
     std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point &start, const Point &goal, std::vector<int> &heights)
@@ -454,6 +469,29 @@ public:
             RCLCPP_INFO(this->get_logger(), "Original path length: %d", path.size());
             RCLCPP_INFO(this->get_logger(), "Simplified path length: %d", simplified.size());
 
+            // Convert path to global system
+            RCLCPP_INFO(this->get_logger(), "Converting points to global coordination system");
+            for (auto &point : simplified)
+            {
+                point.z -= 8;
+                point.y = 263 - point.y;
+            }
+            RCLCPP_INFO(get_logger(), "Conversion ended");
+            RCLCPP_INFO(get_logger(), "Points after conversion");
+            std::string log_message = "{";
+            for (const auto &p : simplified)
+            {
+                log_message += "[";
+                log_message += std::to_string(p.z);
+                log_message += ",";
+                log_message += std::to_string(p.y);
+                log_message += ",";
+                log_message += std::to_string(p.x);
+                log_message += "]";
+            }
+            log_message += "}";
+            RCLCPP_INFO(this->get_logger(), "%s", log_message.c_str());
+
             // now lets reverse the indices to real coordinates
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
             RCLCPP_INFO(get_logger(), "Floodfill ended");
@@ -488,6 +526,19 @@ private:
 
             sub_points.push_back(p);
         }
+
+        RCLCPP_INFO(get_logger(), "Converted to PointList");
+
+        std::string cv_points = "";
+        for (const auto &p : sub_points)
+        {
+            cv_points += "[";
+            cv_points += std::to_string(p.x) + ", ";
+            cv_points += std::to_string(p.y) + ", ";
+            cv_points += std::to_string(p.z) + ", ";
+            cv_points += "]\n";
+        }
+        RCLCPP_INFO(get_logger(), "Converted points: %s", cv_points.c_str());
 
         point_list.points = sub_points;
         return point_list;

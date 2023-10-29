@@ -20,12 +20,12 @@
 
 #define TO_CM 100
 
-#define DRONE_START_X 		14.035203f
-#define DRONE_START_Y 		1.514892f
-#define DRONE_START_Z 		0.003074f
-#define DRONE_START_YAW 	1.521858f
-#define MAP_MAX_WIDTH 		18.2f
-#define MAP_MAX_HEIGHT 		13.5f
+#define DRONE_START_X 14.035203f
+#define DRONE_START_Y 1.514892f
+#define DRONE_START_Z 0.003074f
+#define DRONE_START_YAW 1.521858f
+#define MAP_MAX_WIDTH 18.2f
+#define MAP_MAX_HEIGHT 13.5f
 
 using namespace std::chrono_literals;
 
@@ -654,11 +654,12 @@ private:
 				this->floodfill_points.pop();
 				RCLCPP_INFO(this->get_logger(), "Flood fill point poped");
 			}
-
-			final_pose.position.x = this->floodfill_points.front().z / 100.0;
-			final_pose.position.y = this->floodfill_points.front().y / 100.0;
-			final_pose.position.z = this->floodfill_points.front().x / 100.0;
 		}
+
+		// Calculate requested position (global coordination system)
+		final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
+		final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
+		final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
 
 		// TODO: calculate offsets
 		auto message = geometry_msgs::msg::PoseStamped();
