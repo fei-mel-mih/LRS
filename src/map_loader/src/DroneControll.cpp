@@ -450,6 +450,7 @@ private:
             // YAW
             else if (current_command.task == TASK_ENUM::YAW)
             {
+                // TODO: yaw handling
             }
             // LAND AND TAKEOFF
             else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
