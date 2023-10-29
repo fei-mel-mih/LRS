@@ -389,8 +389,14 @@ public:
         RCLCPP_INFO(get_logger(), "Final converted points: %s", cv_points.c_str());
 
         // Tu sa ta posrata vec z nejakeho dovodu nenaplniiii
-        response->points = pList;
-        response->points.points = pList.points;
+        // response->points = pList;
+        // response->points.points = pList.points;
+        response->points.points.clear();  // Clear the existing points
+
+        for (const auto &p : pList.points)
+        {
+            response->points.points.push_back(p);
+        }
         return;
     }
 
