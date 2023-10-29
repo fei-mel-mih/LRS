@@ -380,15 +380,24 @@ public:
                         {
                             continue;
                         }
-                        Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
-                        int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
-                        RCLCPP_INFO(get_logger(), "Neighbour at [%d,%d,%d]=%d", neighbor.x, neighbor.y, neighbor.z, neighbor_value);
-                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && neighbor_value < min_neighbour_value && neighbor_value != 1)
+                        if (0 <= current_position.x + dx &&
+                            current_position.x + dx < x_len &&
+                            0 <= current_position.y + dy &&
+                            current_position.y + dy < y_len &&
+                            0 <= current_position.z + dz &&
+                            current_position.z + dz < z_len)
                         {
-                            // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
-                            min_neighbour = neighbor;
-                            min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
-                            found = true;
+                            Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
+                            int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
+
+                            if (neighbor_value < min_neighbour_value && neighbor_value != 1)
+                            {
+                                // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
+                                min_neighbour = neighbor;
+                                min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+
+                                found = true;
+                            }
                         }
                     }
                 }
@@ -438,6 +447,7 @@ public:
             // {
             //     std::cout << "point " << real_simplified[i].toString() << ":\n";
             // }
+            RCLCPP_INFO(get_logger(), "Floodfill ended");
             return real_simplified;
         }
         else
