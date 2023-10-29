@@ -713,7 +713,7 @@ private:
 	void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 	{
 		geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
-		
+
 		this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
 		this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
 		this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
@@ -754,13 +754,13 @@ private:
 						this->floodfill_points.pop();
 
 					// Set new checkpoints
-					std::string _log_message = "--- Flood fill points ---\nX\t\tY\t\tZ\n";
+					std::string _log_message = "\n--- Flood fill points ---\nX\t\tY\t\tZ\n";
 					for (const auto &point : response->points.points)
 					{
 						this->floodfill_points.push(point);
-						_log_message += std::to_string(floodfill_points.front().z) + "\t\t";
-						_log_message += std::to_string(floodfill_points.front().y) + "\t\t";
-						_log_message += std::to_string(floodfill_points.front().x) + "\t\t";
+						_log_message += std::to_string(point.z) + "\t\t";
+						_log_message += std::to_string(point.y) + "\t\t";
+						_log_message += std::to_string(point.x) + "\t\t";
 						_log_message += "\n";
 					}
 					RCLCPP_INFO(this->get_logger(), _log_message.c_str());
@@ -791,6 +791,8 @@ private:
 		pose.orientation.y = qy;
 		pose.orientation.z = qz;
 		pose.orientation.w = qw;
+
+		return pose;
 	}
 
 	float quaternionToYaw(const geometry_msgs::msg::Pose &pose)
