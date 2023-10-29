@@ -213,6 +213,17 @@ public:
         RCLCPP_INFO(get_logger(), "Length of floodfill path is %d", this->floodfill_points.size());
 
         RCLCPP_INFO(this->get_logger(), "----------------------- Controlling started -----------------------");
+
+        while (rclcpp::ok() && !this->commands.empty())
+        {
+            rclcpp::spin_some(get_node_base_interface());
+
+            RCLCPP_INFO(get_logger(), "Handling position control");
+            handlePositionControll();
+            RCLCPP_INFO(get_logger(), "Position controll handled");
+
+            std::this_thread::sleep_for(250ms);
+        }
     }
 
 private:
@@ -603,14 +614,14 @@ private:
             lrs_interfaces::srv::FloodFill::Request new_ff_request;
 
             lrs_interfaces::msg::Point start_point;
-            start_point.x = current_position.position.x;
-            start_point.y = current_position.position.y;
-            start_point.z = current_position.position.z;
+            start_point.x = current_position.position.x * TO_CM;
+            start_point.y = current_position.position.y * TO_CM;
+            start_point.z = current_position.position.z * TO_CM;
 
             lrs_interfaces::msg::Point goal_point;
-            goal_point.x = current_command.x;
-            goal_point.y = current_command.y;
-            goal_point.z = current_command.z;
+            goal_point.x = current_command.x * TO_CM;
+            goal_point.y = current_command.y * TO_CM;
+            goal_point.z = current_command.z * TO_CM;
 
             new_ff_request.start_point = start_point;
             new_ff_request.goal_point = goal_point;
@@ -627,9 +638,9 @@ private:
         else
         {
             geometry_msgs::msg::Pose ff_goal_pose;
-            ff_goal_pose.position.x = this->floodfill_points.front().x;
+            ff_goal_pose.position.x = this->floodfill_points.front().z;
             ff_goal_pose.position.y = this->floodfill_points.front().y;
-            ff_goal_pose.position.z = this->floodfill_points.front().z;
+            ff_goal_pose.position.z = this->floodfill_points.front().x;
 
             bool b_ff_reached = isLocationInsideRegion(current_position, ff_goal_pose, HARD_PRECISION);
 
@@ -639,9 +650,9 @@ private:
                 RCLCPP_INFO(this->get_logger(), "Flood fill point poped");
             }
 
-            final_pose.position.x = this->floodfill_points.front().x;
-            final_pose.position.y = this->floodfill_points.front().y;
-            final_pose.position.z = this->floodfill_points.front().z;
+            final_pose.position.x = this->floodfill_points.front().z / 100.0;
+            final_pose.position.y = this->floodfill_points.front().y / 100.0;
+            final_pose.position.z = this->floodfill_points.front().x / 100.0;
         }
 
         // TODO: calculate offsets
@@ -663,9 +674,6 @@ private:
         this->current_position = current_local_pos_.pose;
 
         this->b_initial_position_aquired = true;
-
-        // TODO: prepocty medzi suradnicovymi systemami
-
         // RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
     }
 
@@ -702,9 +710,9 @@ private:
                     for (const auto &point : response->points.points)
                     {
                         this->floodfill_points.push(point);
-                        _log_message += std::to_string(floodfill_points.front().x) + "\t\t";
-                        _log_message += std::to_string(floodfill_points.front().y) + "\t\t";
                         _log_message += std::to_string(floodfill_points.front().z) + "\t\t";
+                        _log_message += std::to_string(floodfill_points.front().y) + "\t\t";
+                        _log_message += std::to_string(floodfill_points.front().x) + "\t\t";
                         _log_message += "\n";
                     }
                     RCLCPP_INFO(this->get_logger(), _log_message.c_str());

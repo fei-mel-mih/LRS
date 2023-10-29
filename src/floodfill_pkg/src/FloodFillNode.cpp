@@ -6,11 +6,11 @@
 #include "MapReader.h"
 #include "lrs_interfaces/srv/flood_fill.hpp"
 
-#define GRID_IN_CM              5.0
-#define DRONE_GLOBAL_START_X    14.f
-#define DRONE_GLOBAL_START_Y    1.51f
+#define GRID_IN_CM 5.0
+#define DRONE_GLOBAL_START_X 14.f
+#define DRONE_GLOBAL_START_Y 1.51f
 #define MAP_HEIGHT_PIXEL_OFFSET 25
-#define MAP_WIDTH_PIXEL_OFFSET  8
+#define MAP_WIDTH_PIXEL_OFFSET 8
 
 class FloodFillNode : public rclcpp::Node
 {
@@ -170,7 +170,6 @@ public:
         int foundIndex = -1;
         for (size_t i = 0; i < heights.size(); ++i)
         {
-            RCLCPP_INFO(get_logger(), "Checking height %d with value %f", heights[i], value);
             if (value <= heights[i])
             {
                 foundIndex = i;
@@ -179,7 +178,7 @@ public:
         }
         if (foundIndex == -1)
         {
-            RCLCPP_INFO(this->get_logger(), "Height value of %d is not possible!", value);
+            RCLCPP_ERROR(this->get_logger(), "Height value of %d is not possible!", value);
         }
         return foundIndex;
     }
@@ -217,10 +216,12 @@ public:
         Point goal;
         std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
         std::vector<int> heights = map_reader.getHeights();
-        // map = map_reader.inflateMap(map);
 
-        // Conversion to right coordination system
-        
+        int sz_map_x = map.size();
+        int sz_map_y = map[0].size();
+        int sz_map_z = map[0][0].size();
+        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
+        // map = map_reader.inflateMap(map);
 
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
@@ -229,17 +230,49 @@ public:
         start.y = real_to_index((float)start.y);
         start.z = real_to_index((float)start.z);
 
+        // Conversion of local drone coordinations
+        {
+            Point converted_start = {};
+            // From drone CS to map CS
+            // converted_start.y = start.z + 280;
+            // converted_start.z = 366 - 2 - 31 + start.y;
+            // converted_start.x = start.x;
+
+            converted_start.z = start.z + 233;
+            converted_start.y = start.y + 280;
+            converted_start.x = start.x;
+
+            start = converted_start;
+
+            RCLCPP_INFO(get_logger(), "Drone to map = [%d,%d,%d]",
+                        converted_start.x, converted_start.y, converted_start.z);
+        }
+
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
         goal.x = map_to_height_index((float)goal.x, heights);
         goal.y = real_to_index((float)goal.y);
         goal.z = real_to_index((float)goal.z);
 
-        // Handle map boundaries
-        int sz_map_x = map.size();
-        int sz_map_y = map[0].size();
-        int sz_map_z = map[0][0].size();
-        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
+        // Conversion of global coordinations
+        {
+            Point converted_goal = {};
+            // From global CS to map CS
+            // converted_goal.z = goal.z + MAP_WIDTH_PIXEL_OFFSET;
+            // converted_goal.y = (sz_map_y - MAP_HEIGHT_PIXEL_OFFSET) - goal.y;
+            // converted_goal.x = goal.x;
 
+            converted_goal.z = 263 - goal.y;
+            converted_goal.y = goal.z + 8;
+            converted_goal.x = goal.x;
+
+            goal = converted_goal;
+
+            RCLCPP_INFO(get_logger(), "Global to map = [%d,%d,%d]",
+                        converted_goal.x, converted_goal.y, converted_goal.z);
+        }
+
+
+        // Handle map boundaries
         RCLCPP_INFO(this->get_logger(), "Converted start to indexes: [%d,%d,%d]", start.x, start.y, start.z);
         RCLCPP_INFO(this->get_logger(), "Converted goal to indexes: [%d,%d,%d]", goal.x, goal.y, goal.z);
 

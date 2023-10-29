@@ -47,9 +47,9 @@ private:
         for (const auto& row : this->mission_data)
         {
             lrs_interfaces::msg::Command command;
-            command.x = std::stoi(row.at(0));
-            command.y = std::stoi(row.at(1));
-            command.z = std::stoi(row.at(2));
+            command.x = std::stof(row.at(0));
+            command.y = std::stof(row.at(1));
+            command.z = std::stof(row.at(2));
             command.precision = row.at(3);
             command.task = row.at(4);
 
