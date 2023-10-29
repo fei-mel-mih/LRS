@@ -20,6 +20,8 @@
 #include "lrs_interfaces/srv/flood_fill.hpp"
 #pragma endregion includes
 
+#define TO_CM 100
+
 using namespace std::chrono_literals;
 
 class DroneControll : public rclcpp::Node
@@ -142,6 +144,14 @@ public:
         this->current_command = converted_commands.front();
         converted_commands.pop();
 
+        // Wait for initial position
+        while (!this->b_initial_position_aquired)
+        {
+            rclcpp::spin_some(this->get_node_base_interface());
+            std::this_thread::sleep_for(250ms);
+        }
+        RCLCPP_INFO(this->get_logger(), "Initial positon aquired: positon=[%f,%f,%f]", current_position.position.x, current_position.position.y, current_position.position.z);
+
         // Get initial floodfill points
         while (!floodfill_cleint_->wait_for_service(1s))
         {
@@ -155,17 +165,23 @@ public:
         lrs_interfaces::srv::FloodFill::Request initial_floodfill_request;
 
         lrs_interfaces::msg::Point start_point;
-        start_point.x = current_position.position.x;
-        start_point.y = current_position.position.y;
-        start_point.z = current_position.position.z;
+        start_point.x = current_position.position.x * TO_CM;
+        start_point.y = current_position.position.y * TO_CM;
+        start_point.z = current_position.position.z * TO_CM;
 
         lrs_interfaces::msg::Point goal_point;
-        goal_point.x = current_command.x;
-        goal_point.y = current_command.y;
-        goal_point.z = current_command.z;
+        goal_point.x = current_command.x * TO_CM;
+        goal_point.y = current_command.y * TO_CM;
+        goal_point.z = current_command.z * TO_CM;
 
         initial_floodfill_request.start_point = start_point;
         initial_floodfill_request.goal_point = goal_point;
+
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Retreiveing point for path start=[%f,%f,%f] : goal=[%f,%f,%f]",
+            start_point.x, start_point.y, start_point.z,
+            goal_point.x, goal_point.y, goal_point.z);
 
         auto floofill_future = this->floodfill_cleint_->async_send_request(std::make_shared<lrs_interfaces::srv::FloodFill::Request>(initial_floodfill_request));
         retrieveNewFloodFillPoints(floofill_future);
@@ -466,6 +482,13 @@ private:
 
             new_ff_request.start_point = start_point;
             new_ff_request.goal_point = goal_point;
+
+            RCLCPP_INFO(
+                this->get_logger(),
+                "Retreiveing point for path start=[%f,%f,%f] : goal=[%f,%f,%f]",
+                start_point.x, start_point.y, start_point.z,
+                goal_point.x, goal_point.y, goal_point.z);
+
             auto new_ff_future = floodfill_cleint_->async_send_request(std::make_shared<lrs_interfaces::srv::FloodFill::Request>(new_ff_request));
             retrieveNewFloodFillPoints(new_ff_future);
         }
@@ -503,6 +526,8 @@ private:
     {
         geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
         this->current_position = current_local_pos_.pose;
+
+        this->b_initial_position_aquired = true;
 
         // TODO: prepocty medzi suradnicovymi systemami
 
@@ -580,6 +605,8 @@ private:
     ConvertedCommand current_command;
     std::queue<ConvertedCommand> converted_commands;
     std::queue<lrs_interfaces::msg::Point> floodfill_points;
+
+    bool b_initial_position_aquired = false;
 
     // Precisions
     const float SOFT_PRECISION = 0.05f;  // 5 cm

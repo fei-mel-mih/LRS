@@ -1,6 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <queue>
+#include <math.h>
 
 #include "MapReader.h"
 #include "lrs_interfaces/srv/flood_fill.hpp"
@@ -43,7 +44,7 @@ public:
         }
     };
 
-    bool has_line_of_sight(const Point& start, const Point& end, const std::vector<std::vector<std::vector<int>>>& map) 
+    bool has_line_of_sight(const Point &start, const Point &end, const std::vector<std::vector<std::vector<int>>> &map)
     {
         int x1 = start.x;
         int y1 = start.y;
@@ -61,78 +62,78 @@ public:
         int zs = (z1 < z2) ? 1 : -1;
 
         // Driving axis is X-axis
-        if (dx >= dy && dx >= dz) 
+        if (dx >= dy && dx >= dz)
         {
             int p1 = 2 * dy - dx;
             int p2 = 2 * dz - dx;
-            while (x1 != x2) 
+            while (x1 != x2)
             {
                 x1 += xs;
-                if (p1 >= 0) 
+                if (p1 >= 0)
                 {
                     y1 += ys;
                     p1 -= 2 * dx;
                 }
-                if (p2 >= 0) 
+                if (p2 >= 0)
                 {
                     z1 += zs;
                     p2 -= 2 * dx;
                 }
                 p1 += 2 * dy;
                 p2 += 2 * dz;
-                if (map[x1][y1][z1] == 1) 
+                if (map[x1][y1][z1] == 1)
                 {
                     return false;
                 }
             }
         }
         // Driving axis is Y-axis
-        else if (dy >= dx && dy >= dz) 
+        else if (dy >= dx && dy >= dz)
         {
             int p1 = 2 * dx - dy;
             int p2 = 2 * dz - dy;
-            while (y1 != y2) 
+            while (y1 != y2)
             {
                 y1 += ys;
-                if (p1 >= 0) 
+                if (p1 >= 0)
                 {
                     x1 += xs;
                     p1 -= 2 * dy;
                 }
-                if (p2 >= 0) 
+                if (p2 >= 0)
                 {
                     z1 += zs;
                     p2 -= 2 * dy;
                 }
                 p1 += 2 * dx;
                 p2 += 2 * dz;
-                if (map[x1][y1][z1] == 1) 
+                if (map[x1][y1][z1] == 1)
                 {
                     return false;
                 }
             }
         }
         // Driving axis is Z-axis
-        else 
+        else
         {
             int p1 = 2 * dy - dz;
             int p2 = 2 * dx - dz;
-            while (z1 != z2) 
+            while (z1 != z2)
             {
                 z1 += zs;
-                if (p1 >= 0) 
+                if (p1 >= 0)
                 {
                     y1 += ys;
                     p1 -= 2 * dz;
                 }
-                if (p2 >= 0) 
+                if (p2 >= 0)
                 {
                     x1 += xs;
                     p2 -= 2 * dz;
                 }
                 p1 += 2 * dy;
                 p2 += 2 * dx;
-                if (map[x1][y1][z1] == 1) 
+                if (map[x1][y1][z1] == 1)
                 {
                     return false;
                 }
@@ -141,29 +142,31 @@ public:
         return true;
     }
 
-    std::vector<Point> simplify_path(const std::vector<Point>& path, const std::vector<std::vector<std::vector<int>>>& map) 
+    std::vector<Point> simplify_path(const std::vector<Point> &path, const std::vector<std::vector<std::vector<int>>> &map)
     {
         std::vector<Point> simplified_path;
         Point A = path[0];
         simplified_path.push_back(A);
 
-        for (int i = 1; i < path.size(); i++) 
+        for (int i = 1; i < path.size(); i++)
         {
-            if (!has_line_of_sight(A, path[i], map)) 
+            if (!has_line_of_sight(A, path[i], map))
             {
-                simplified_path.push_back(path[i-1]);
-                A = path[i-1];
+                simplified_path.push_back(path[i - 1]);
+                A = path[i - 1];
             }
         }
 
-        simplified_path.push_back(path.back());  // add the last point
+        simplified_path.push_back(path.back()); // add the last point
         return simplified_path;
     }
 
-    int map_to_height_index(float value, const std::vector<int>& heights) {
+    int map_to_height_index(float value, const std::vector<int> &heights)
+    {
         int foundIndex = -1;
-        for (size_t i = 0; i < heights.size(); ++i) 
+        for (size_t i = 0; i < heights.size(); ++i)
         {
+            RCLCPP_INFO(get_logger(), "Checking height %d with value %f", heights[i], value);
             if (value <= heights[i])
             {
                 foundIndex = i;
@@ -181,13 +184,13 @@ public:
     {
         value /= GRID_IN_CM;
         value = std::ceil(value);
-        return value;
+        return (int)value;
     }
 
-    std::vector<Point> path_to_real(std::vector<Point>& path, std::vector<int>& heights)
+    std::vector<Point> path_to_real(std::vector<Point> &path, std::vector<int> &heights)
     {
         std::vector<Point> copy = path;
-        for (int i = 0; i <  copy.size(); i++) 
+        for (int i = 0; i < copy.size(); i++)
         {
             copy[i].x = heights[copy[i].x];
             copy[i].y *= GRID_IN_CM;
@@ -200,6 +203,10 @@ public:
                     const lrs_interfaces::srv::FloodFill::Response::SharedPtr response)
     {
         RCLCPP_INFO(this->get_logger(), "Starting flood_fill...");
+        RCLCPP_INFO(this->get_logger(), "Request: start=[%d,%d,%d] goal=[%d,%d,%d]",
+                    request->start_point.x, request->start_point.y, request->start_point.z,
+                    request->goal_point.x, request->goal_point.y, request->goal_point.z);
+
         MapReader map_reader;
 
         Point start;
@@ -208,46 +215,49 @@ public:
         std::vector<int> heights = map_reader.getHeights();
         // map = map_reader.inflateMap(map);
 
-        // Handle map boundaries
-        int sz_map_z = map.size();
-        int sz_map_y = map[0].size();
-        int sz_map_x = map[0][0].size();
-        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_z, sz_map_y, sz_map_x);
-
-        // Check start point
-        if ((request->start_point.x >= sz_map_x || request->start_point.y >= sz_map_y || request->start_point.z >= sz_map_z) ||
-            (request->start_point.x < 0 || request->start_point.y < 0 || request->start_point.z < 0))
-        {
-            RCLCPP_ERROR(this->get_logger(), "Start position out of map [%d,%d,%d]", request->start_point.z, request->start_point.y, request->start_point.x);
-            return;
-        }
-        // Check goal point
-        if ((request->goal_point.x >= sz_map_x || request->goal_point.y >= sz_map_y || request->goal_point.z >= sz_map_z) ||
-            (request->goal_point.x < 0 || request->goal_point.y < 0 || request->goal_point.z < 0))
-        {
-            RCLCPP_ERROR(this->get_logger(), "Goal position out of map [%d,%d,%d]", request->goal_point.z, request->goal_point.y, request->goal_point.x);
-            return;
-        }
-
+        start = {request->start_point.z, request->start_point.y, request->start_point.x};
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
         // std::cout << "[START] Real coords: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
-        start.x = map_to_height_index(start.x, heights);
-        start.y = real_to_index(start.y);
-        start.z = real_to_index(start.z);
+        start.x = map_to_height_index((float)start.x, heights);
+        start.y = real_to_index((float)start.y);
+        start.z = real_to_index((float)start.z);
         // std::cout << "[START] Indices: [" << start.x << ", " << start.y << ", " << start.z << "]\n";
-        // [GOAL POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
-        // std::cout << "[GOAL] Real coords: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
-        goal.x = map_to_height_index(goal.x, heights);
-        goal.y = real_to_index(goal.y);
-        goal.z = real_to_index(goal.z);
-        // std::cout << "[GOAL] Indices: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
-        
-        start = {request->start_point.z, request->start_point.y, request->start_point.x};
-        std::cout << map[start.x][start.y][start.z] << std::endl;
 
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
-        std::cout << map[goal.x][goal.y][goal.z] << std::endl;
+        // [GOAL POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
+        // std::cout << "[GOAL] Real coords: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
+        goal.x = map_to_height_index((float)goal.x, heights);
+        goal.y = real_to_index((float)goal.y);
+        goal.z = real_to_index((float)goal.z);
+        // std::cout << "[GOAL] Indices: [" << goal.x << ", " << goal.y << ", " << goal.z << "]\n";
+
+        // Handle map boundaries
+        int sz_map_x = map.size();
+        int sz_map_y = map[0].size();
+        int sz_map_z = map[0][0].size();
+        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
+
+        RCLCPP_INFO(this->get_logger(), "Converted start to indexes: [%d,%d,%d]", start.x, start.y, start.z);
+        RCLCPP_INFO(this->get_logger(), "Converted goal to indexes: [%d,%d,%d]", goal.x, goal.y, goal.z);
+
+        // Check start point
+        if ((start.x >= sz_map_x || start.y >= sz_map_y || start.z >= sz_map_z) ||
+            (start.x < 0 || start.y < 0 || start.z < 0))
+        {
+            RCLCPP_ERROR(this->get_logger(), "Start position out of map [%d,%d,%d]", start.x, start.y, start.z);
+            return;
+        }
+        // Check goal point
+        if ((goal.x >= sz_map_x || goal.y >= sz_map_y || goal.z >= sz_map_z) ||
+            (goal.x < 0 || goal.y < 0 || goal.z < 0))
+        {
+            RCLCPP_ERROR(this->get_logger(), "Goal position out of map [%d,%d,%d]", goal.x, goal.y, goal.z);
+            return;
+        }
+
+        RCLCPP_INFO(get_logger(), "Map start value=%d", map[start.x][start.y][start.z]);
+        RCLCPP_INFO(get_logger(), "Map goal value=%d", map[goal.x][goal.y][goal.z]);
 
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
@@ -299,7 +309,7 @@ public:
             //     if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] == 0) {
             //         map[neighbor.x][neighbor.y][neighbor.z] = current_value + 1;
             //         q.push(neighbor);
-            //     }
+            //     }f
             // }
         }
 
@@ -336,8 +346,9 @@ public:
         response->points = converToPointList(points);
     }
 
-    std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point& start, const Point& goal, std::vector<int>& heights)
+    std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point &start, const Point &goal, std::vector<int> &heights)
     {
+        RCLCPP_INFO(this->get_logger(), "get_flood_fill_path started");
         // Find path
         std::vector<Point> path;
         Point current_position = start;
@@ -357,7 +368,7 @@ public:
             path.push_back(current_position);
             int current_value = map[current_position.x][current_position.y][current_position.z];
             // Set it to the current value so we can find a lesser value
-            int min_neighbour_value = current_value; 
+            int min_neighbour_value = current_value;
             found = false; // Reset
             for (int dx : deltas)
             {
@@ -368,10 +379,12 @@ public:
                         if (dx == 0 && dy == 0 && dz == 0)
                         {
                             continue;
-                        } 
+                        }
                         Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
                         int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
-                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len &&  neighbor_value < min_neighbour_value && neighbor_value != 1) {
+                        RCLCPP_INFO(get_logger(), "Neighbour at [%d,%d,%d]=%d", neighbor.x, neighbor.y, neighbor.z, neighbor_value);
+                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && neighbor_value < min_neighbour_value && neighbor_value != 1)
+                        {
                             // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
                             min_neighbour = neighbor;
                             min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
@@ -391,12 +404,12 @@ public:
         // If path was found
         if (found)
         {
-            // Add goal to path 
+            // Add goal to path
             path.push_back(goal);
 
             // print path
             // std::cout << "Original found path: " << std::endl;
-            // for (int i = 0; i <  path.size(); i++) 
+            // for (int i = 0; i <  path.size(); i++)
             // {
             //     std::cout << "point " << path[i].toString() << ":\n";
             // }
@@ -406,7 +419,7 @@ public:
             std::vector<Point> simplified = simplify_path(path, map);
 
             // print path
-            // for (int i = 0; i <  simplified.size(); i++) 
+            // for (int i = 0; i <  simplified.size(); i++)
             // {
             //     std::cout << "point " << simplified[i].toString() << ":\n";
             // }
@@ -421,12 +434,12 @@ public:
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
 
             // print path
-            // for (int i = 0; i <  real_simplified.size(); i++) 
+            // for (int i = 0; i <  real_simplified.size(); i++)
             // {
             //     std::cout << "point " << real_simplified[i].toString() << ":\n";
             // }
             return real_simplified;
-        } 
+        }
         else
         {
             return {};
