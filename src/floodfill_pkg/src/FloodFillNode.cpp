@@ -317,7 +317,7 @@ public:
             return;
         }
 
-        std::vector<Point> points = get_flood_fill_path(map, start, goal);
+        std::vector<Point> points = get_flood_fill_path(map, start, goal, heights);
 
         std::string log_message = "{";
         for (const Point p : points)
@@ -336,7 +336,7 @@ public:
         response->points = converToPointList(points);
     }
 
-    std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point& start, const Point& goal)
+    std::vector<Point> get_flood_fill_path(std::vector<std::vector<std::vector<int>>> map, const Point& start, const Point& goal, std::vector<int>& heights)
     {
         // Find path
         std::vector<Point> path;
@@ -414,8 +414,8 @@ public:
             // std::cout << "Original path length: " << path.size() << std::endl;
             // std::cout << "Simplified path length: " << simplified.size() << std::endl;
 
-            RCLCPP_INFO(this->get_logger(), "Original path length: %d", path.size())
-            RCLCPP_INFO(this->get_logger(), "Simplified path length: %d", simplified.size())
+            RCLCPP_INFO(this->get_logger(), "Original path length: %d", path.size());
+            RCLCPP_INFO(this->get_logger(), "Simplified path length: %d", simplified.size());
 
             // now lets reverse the indices to real coordinates
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
@@ -429,7 +429,7 @@ public:
         } 
         else
         {
-            return {}
+            return {};
         }
     }
 
