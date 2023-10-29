@@ -466,7 +466,44 @@ private:
 			// YAW
 			else if (current_command.task == TASK_ENUM::YAW)
 			{
-				// TODO: yaw handling
+				float yaw = current_command.yaw_value * (M_PI / 180.0);
+				auto req_pose = yawToQuaternion(yaw);
+
+				auto message = geometry_msgs::msg::PoseStamped();
+				auto header = std_msgs::msg::Header();
+				header.frame_id = "position_control";
+				header.stamp = this->get_clock()->now();
+
+				message.header = header;
+				message.pose = req_pose;
+
+				local_pos_pub_->publish(message);
+				RCLCPP_INFO(this->get_logger(), "Requested orientation published: w=%f x=%f y=%f z=%f",
+							req_pose.orientation.w, req_pose.orientation.x, req_pose.orientation.y, req_pose.orientation.z);
+
+				while (rclcpp::ok())
+				{
+					rclcpp::spin_some(get_node_base_interface());
+
+					float yaw_offset = std::abs(yaw - quaternionToYaw(current_position));
+					bool b_yaw_reached = false;
+
+					if (current_command.precision == PRECISION_ENUM::HARD)
+					{
+						b_yaw_reached = yaw_offset <= (15.0 * (M_PI / 180.0));
+					}
+					else
+					{
+						b_yaw_reached = yaw_offset <= (5.0 * (M_PI / 180.0));
+					}
+
+					if (b_yaw_reached)
+						break;
+
+					RCLCPP_INFO(get_logger(), "Drone rotating");
+
+					std::this_thread::sleep_for(250ms);					
+				}
 			}
 			// LAND AND TAKEOFF
 			else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
@@ -661,7 +698,6 @@ private:
 		final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
 		final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
 
-		// TODO: calculate offsets
 		auto message = geometry_msgs::msg::PoseStamped();
 		auto header = std_msgs::msg::Header();
 		header.frame_id = "position_control";
@@ -677,7 +713,7 @@ private:
 	void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 	{
 		geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
-		// TODO: conversion to global position
+		
 		this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
 		this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
 		this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
@@ -736,6 +772,38 @@ private:
 			RCLCPP_INFO(this->get_logger(), "Waiting for new floodfill points");
 		}
 		RCLCPP_INFO(this->get_logger(), "New flood fill points achieved");
+	}
+
+	geometry_msgs::msg::Pose yawToQuaternion(float yaw)
+	{
+		geometry_msgs::msg::Pose pose;
+
+		float halfYaw = yaw * 0.5;
+		float cosYaw = cos(halfYaw);
+		float sinYaw = sin(halfYaw);
+
+		float qx = 0.0;
+		float qy = 0.0;
+		float qz = sinYaw;
+		float qw = cosYaw;
+
+		pose.orientation.x = qx;
+		pose.orientation.y = qy;
+		pose.orientation.z = qz;
+		pose.orientation.w = qw;
+	}
+
+	float quaternionToYaw(const geometry_msgs::msg::Pose &pose)
+	{
+		auto orientation = pose.orientation;
+
+		// Convert quaternion to yaw angle
+		float sinYaw = 2.0 * (orientation.w * orientation.z + orientation.x * orientation.y);
+		float cosYaw = 1.0 - 2.0 * (orientation.y * orientation.y + orientation.z * orientation.z);
+
+		float yaw = atan2(sinYaw, cosYaw) * 2.0;
+
+		return yaw;
 	}
 
 	rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
