@@ -516,7 +516,7 @@ private:
 			else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
 			{
 				// LAND
-				while (!this->takeoff_client_->wait_for_service(1s))
+				while (!this->land_client_->wait_for_service(1s))
 				{
 					rclcpp::spin_some(get_node_base_interface());
 					if (!rclcpp::ok())
@@ -526,7 +526,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request land_request;
-				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+				land_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
 
 				while (rclcpp::ok())
 				{
@@ -615,7 +615,7 @@ private:
 			else if (current_command.task == TASK_ENUM::LAND)
 			{
 				// LAND
-				while (!this->takeoff_client_->wait_for_service(1s))
+				while (!this->land_client_->wait_for_service(1s))
 				{
 					rclcpp::spin_some(get_node_base_interface());
 					if (!rclcpp::ok())
@@ -625,7 +625,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request land_request;
-				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+				land_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
 
 				while (rclcpp::ok())
 				{
@@ -704,39 +704,42 @@ private:
 			}
 		}
 
-		// Calculate requested position (global coordination system)
-		// final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
-		// final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
-		// final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
+		if (!this->floodfill_points.empty())
+		{
+			// Calculate requested position (global coordination system)
+			// final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
+			// final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
+			// final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
 
-		// Calculate the relative position of the goal in the global coordinate system
-		float relative_global_x = (floodfill_points.front().x / 100.0) - current_position.position.x;
-		float relative_global_y = (floodfill_points.front().y / 100.0) - current_position.position.y;
-		float relative_global_z = (floodfill_points.front().z / 100.0) - current_position.position.z;
+			// Calculate the relative position of the goal in the global coordinate system
+			float relative_global_x = (floodfill_points.front().x / 100.0) - DRONE_START_X;
+			float relative_global_y = (floodfill_points.front().y / 100.0) - DRONE_START_Y;
+			float relative_global_z = (floodfill_points.front().z / 100.0) - DRONE_START_Z;
 
-		// Rotate the relative position to the local coordinate system
-		float relative_local_x =  cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
-		float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
-		float relative_local_z = relative_global_z;
+			// Rotate the relative position to the local coordinate system
+			float relative_local_x = cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
+			float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
+			float relative_local_z = relative_global_z;
 
-		// Calculate the distances to move in the local coordinate system
-		final_pose.position.x = relative_local_x;
-		final_pose.position.y = relative_local_y;
-		final_pose.position.z = relative_local_z;
+			// Calculate the distances to move in the local coordinate system
+			final_pose.position.x = relative_local_x;
+			final_pose.position.y = relative_local_y;
+			final_pose.position.z = relative_local_z;
 
-		RCLCPP_INFO(get_logger(), "Flood fill points: x=%f y=%f z=%f",
-					(this->floodfill_points.front().x / 100.0), (this->floodfill_points.front().y / 100.0), (this->floodfill_points.front().z / 100.0));
+			RCLCPP_INFO(get_logger(), "Flood fill points: x=%f y=%f z=%f",
+						(this->floodfill_points.front().x / 100.0), (this->floodfill_points.front().y / 100.0), (this->floodfill_points.front().z / 100.0));
 
-		auto message = geometry_msgs::msg::PoseStamped();
-		auto header = std_msgs::msg::Header();
-		header.frame_id = "position_control";
-		header.stamp = this->get_clock()->now();
+			auto message = geometry_msgs::msg::PoseStamped();
+			auto header = std_msgs::msg::Header();
+			header.frame_id = "position_control";
+			header.stamp = this->get_clock()->now();
 
-		message.header = header;
-		message.pose = final_pose;
+			message.header = header;
+			message.pose = final_pose;
 
-		local_pos_pub_->publish(message);
-		RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", final_pose.position.x, final_pose.position.y, final_pose.position.z);
+			local_pos_pub_->publish(message);
+			RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", final_pose.position.x, final_pose.position.y, final_pose.position.z);
+		}
 	}
 
 	void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)

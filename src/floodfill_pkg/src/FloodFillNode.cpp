@@ -226,9 +226,9 @@ public:
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
         start = {request->start_point.z, request->start_point.y, request->start_point.x};
-        start.x = map_to_height_index((float)start.x, heights);
-        start.y = real_to_index((float)start.y);
-        start.z = real_to_index((float)start.z);
+        start.x = map_to_height_index((float)start.x, heights); // z
+        start.y = real_to_index((float)start.y); // y
+        start.z = real_to_index((float)start.z); // x
 
         // Conversion of local drone coordinations
         {
