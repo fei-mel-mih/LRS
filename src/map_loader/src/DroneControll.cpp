@@ -23,7 +23,7 @@
 #define DRONE_START_X 14.035203f
 #define DRONE_START_Y 1.514892f
 #define DRONE_START_Z 0.003074f
-#define DRONE_START_YAW 1.521858f
+#define DRONE_START_YAW M_PI_2
 #define MAP_MAX_WIDTH 18.2f
 #define MAP_MAX_HEIGHT 13.5f
 
@@ -687,9 +687,9 @@ private:
 		else
 		{
 			geometry_msgs::msg::Pose ff_goal_pose;
-			ff_goal_pose.position.x = this->floodfill_points.front().z / 100.0;
+			ff_goal_pose.position.x = this->floodfill_points.front().x / 100.0;
 			ff_goal_pose.position.y = this->floodfill_points.front().y / 100.0;
-			ff_goal_pose.position.z = this->floodfill_points.front().x / 100.0;
+			ff_goal_pose.position.z = this->floodfill_points.front().z / 100.0;
 
 			RCLCPP_INFO(get_logger(), "Comparing positions: goal[%f,%f,%f] == drone[%f,%f,%f]",
 						ff_goal_pose.position.x, ff_goal_pose.position.y, ff_goal_pose.position.z,
@@ -705,9 +705,24 @@ private:
 		}
 
 		// Calculate requested position (global coordination system)
-		final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
-		final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
-		final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
+		// final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
+		// final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
+		// final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
+
+		// Calculate the relative position of the goal in the global coordinate system
+		float relative_global_x = (floodfill_points.front().x / 100.0) - current_position.position.x;
+		float relative_global_y = (floodfill_points.front().y / 100.0) - current_position.position.y;
+		float relative_global_z = (floodfill_points.front().z / 100.0) - current_position.position.z;
+
+		// Rotate the relative position to the local coordinate system
+		float relative_local_x =  cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
+		float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
+		float relative_local_z = relative_global_z;
+
+		// Calculate the distances to move in the local coordinate system
+		final_pose.position.x = relative_local_x;
+		final_pose.position.y = relative_local_y;
+		final_pose.position.z = relative_local_z;
 
 		RCLCPP_INFO(get_logger(), "Flood fill points: x=%f y=%f z=%f",
 					(this->floodfill_points.front().x / 100.0), (this->floodfill_points.front().y / 100.0), (this->floodfill_points.front().z / 100.0));
@@ -728,14 +743,19 @@ private:
 	{
 		geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
 
-		this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
-		this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
+		// this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
+		// this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
+		// this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
+
+		this->current_position.position.x = DRONE_START_X + cos(DRONE_START_YAW) * current_local_pos_.pose.position.x - sin(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		this->current_position.position.y = DRONE_START_Y + sin(DRONE_START_YAW) * current_local_pos_.pose.position.x + cos(DRONE_START_YAW) * current_local_pos_.pose.position.y;
 		this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
 
 		this->current_position.orientation = current_local_pos_.pose.orientation;
 
 		if (!this->b_initial_position_aquired)
 			this->b_initial_position_aquired = true;
+
 		// RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
 	}
 
@@ -771,10 +791,14 @@ private:
 					std::string _log_message = "\n--- Flood fill points ---\nX\t\tY\t\tZ\n";
 					for (const auto &point : response->points.points)
 					{
-						this->floodfill_points.push(point);
-						_log_message += std::to_string(point.z) + "\t\t";
-						_log_message += std::to_string(point.y) + "\t\t";
-						_log_message += std::to_string(point.x) + "\t\t";
+						lrs_interfaces::msg::Point converted_point = point;
+						converted_point.x = point.z;
+						converted_point.z = point.x;
+
+						this->floodfill_points.push(converted_point);
+						_log_message += std::to_string(converted_point.z) + "\t\t";
+						_log_message += std::to_string(converted_point.y) + "\t\t";
+						_log_message += std::to_string(converted_point.x) + "\t\t";
 						_log_message += "\n";
 					}
 					RCLCPP_INFO(this->get_logger(), _log_message.c_str());
