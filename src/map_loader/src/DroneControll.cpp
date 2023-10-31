@@ -20,9 +20,9 @@
 
 #define TO_CM 100
 
-#define DRONE_START_X 14.035203f
-#define DRONE_START_Y 1.514892f
-#define DRONE_START_Z 0.003074f
+#define DRONE_START_X 13.599900f
+#define DRONE_START_Y 1.494780f
+#define DRONE_START_Z 0.003021f
 #define DRONE_START_YAW M_PI_2
 #define MAP_MAX_WIDTH 18.2f
 #define MAP_MAX_HEIGHT 13.5f
@@ -540,6 +540,27 @@ private:
 					std::this_thread::sleep_for(250ms);
 				}
 
+				// Set mode
+				mavros_msgs::srv::SetMode::Request guided_set_mode_req;
+				guided_set_mode_req.custom_mode = "GUIDED";
+				while (!set_mode_client_->wait_for_service(1s))
+				{
+					rclcpp::spin_some(this->get_node_base_interface());
+					if (!rclcpp::ok())
+					{
+						RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
+						return;
+					}
+				}
+				auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
+
+				// Test if drone state really changed to GUIDED
+				while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
+				{
+					rclcpp::spin_some(this->get_node_base_interface());
+					std::this_thread::sleep_for(100ms);
+				}
+
 				// ARM
 				while (!arming_client_->wait_for_service(1s))
 				{
@@ -577,7 +598,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request takeoff_request;
-				takeoff_request.altitude = TAKEOFF_ALTITUDE;
+				takeoff_request.altitude = current_command.z;
 				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
 				// Eval precision
@@ -717,8 +738,10 @@ private:
 			float relative_global_z = (floodfill_points.front().z / 100.0) - DRONE_START_Z;
 
 			// Rotate the relative position to the local coordinate system
-			float relative_local_x = cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
-			float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
+			// float relative_local_x = cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
+			// float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
+			float relative_local_x = relative_global_y;
+			float relative_local_y = relative_global_x;
 			float relative_local_z = relative_global_z;
 
 			// Calculate the distances to move in the local coordinate system
@@ -746,13 +769,13 @@ private:
 	{
 		geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
 
-		// this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
-		// this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
-		// this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
-
-		this->current_position.position.x = DRONE_START_X + cos(DRONE_START_YAW) * current_local_pos_.pose.position.x - sin(DRONE_START_YAW) * current_local_pos_.pose.position.y;
-		this->current_position.position.y = DRONE_START_Y + sin(DRONE_START_YAW) * current_local_pos_.pose.position.x + cos(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		this->current_position.position.x = DRONE_START_X - current_local_pos_.pose.position.y;
+		this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
 		this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
+
+		// this->current_position.position.x = DRONE_START_X + cos(DRONE_START_YAW) * current_local_pos_.pose.position.x - sin(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		// this->current_position.position.y = DRONE_START_Y + sin(DRONE_START_YAW) * current_local_pos_.pose.position.x + cos(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		// this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
 
 		this->current_position.orientation = current_local_pos_.pose.orientation;
 
@@ -875,8 +898,8 @@ private:
 	bool b_initial_position_aquired = false;
 
 	// Precisions
-	const float SOFT_PRECISION = 0.05f;	 // 5 cm
-	const float HARD_PRECISION = 0.2f;	 // 20 cm
+	const float SOFT_PRECISION = 0.2f;	 // 20 cm
+	const float HARD_PRECISION = 0.05f;	 // 05 cm
 	const float TAKEOFF_ALTITUDE = 0.3f; // 25 cm
 };
 

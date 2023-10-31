@@ -221,7 +221,6 @@ public:
         int sz_map_y = map[0].size();
         int sz_map_z = map[0][0].size();
         RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
-        // map = map_reader.inflateMap(map);
 
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
