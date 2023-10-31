@@ -36,6 +36,7 @@ private:
         auto commands = parseToServiceResponse();
 
         response->commands = commands;
+        response->success = true;
         return;
     }
 

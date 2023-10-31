@@ -277,6 +277,7 @@ public:
             (start.x < 0 || start.y < 0 || start.z < 0))
         {
             RCLCPP_ERROR(this->get_logger(), "Start position out of map [%d,%d,%d]", start.x, start.y, start.z);
+            response->success = false;
             return;
         }
         // Check goal point
@@ -284,6 +285,7 @@ public:
             (goal.x < 0 || goal.y < 0 || goal.z < 0))
         {
             RCLCPP_ERROR(this->get_logger(), "Goal position out of map [%d,%d,%d]", goal.x, goal.y, goal.z);
+            response->success = false;
             return;
         }
 
@@ -354,7 +356,8 @@ public:
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "Path not found! start_value: %d", start_value);
+            RCLCPP_ERROR(this->get_logger(), "Path not found! start_value: %d", start_value);
+            response->success = false;
             return;
         }
 
@@ -374,10 +377,10 @@ public:
         log_message += "}";
         RCLCPP_INFO(this->get_logger(), "Generated path is: %s", log_message.c_str());
 
-        lrs_interfaces::msg::PointList pList = converToPointList(points);
+        std::vector<lrs_interfaces::msg::Point> point_list = converToPointList(points);
 
         std::string cv_points = "";
-        for (const auto &p : pList.points)
+        for (const auto &p : point_list)
         {
             cv_points += "[";
             cv_points += std::to_string(p.x) + ", ";
@@ -387,15 +390,15 @@ public:
         }
         RCLCPP_INFO(get_logger(), "Final converted points: %s", cv_points.c_str());
 
-        // Tu sa ta posrata vec z nejakeho dovodu nenaplniiii
-        // response->points = pList;
-        // response->points.points = pList.points;
-        response->points.points.clear();  // Clear the existing points
+        response->points = point_list;
+        response->success = true;
 
-        for (const auto &p : pList.points)
-        {
-            response->points.points.push_back(p);
-        }
+        // response->points.clear();  // Clear the existing points
+
+        // for (const auto &p : point_list)
+        // {
+        //     response->points.push_back(p);
+        // }
         return;
     }
 
@@ -517,10 +520,9 @@ private:
     const int X_GRID_SIZE = 5;
     const int Y_GRID_SIZE = 5;
 
-    lrs_interfaces::msg::PointList converToPointList(const std::vector<Point> points)
+    std::vector<lrs_interfaces::msg::Point> converToPointList(const std::vector<Point> points)
     {
-        lrs_interfaces::msg::PointList point_list = lrs_interfaces::msg::PointList();
-        std::vector<lrs_interfaces::msg::Point> sub_points;
+        std::vector<lrs_interfaces::msg::Point> converted_points;
 
         for (const Point point : points)
         {
@@ -529,13 +531,13 @@ private:
             p.y = point.y;
             p.z = point.z;
 
-            sub_points.push_back(p);
+            converted_points.push_back(p);
         }
 
         RCLCPP_INFO(get_logger(), "Converted to PointList");
 
         std::string cv_points = "";
-        for (const auto &p : sub_points)
+        for (const auto &p : converted_points)
         {
             cv_points += "[";
             cv_points += std::to_string(p.x) + ", ";
@@ -545,8 +547,7 @@ private:
         }
         RCLCPP_INFO(get_logger(), "Converted points: %s", cv_points.c_str());
 
-        point_list.points = sub_points;
-        return point_list;
+        return converted_points;
     }
 };
 
