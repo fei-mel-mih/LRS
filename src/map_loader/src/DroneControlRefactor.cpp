@@ -57,8 +57,8 @@ public:
         }
         RCLCPP_INFO(get_logger(), "Mavros sitl connected");
 
-        RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
-        acquireMission();
+        // RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
+        // acquireMission();
 
         RCLCPP_INFO(get_logger(), "Changing mode to guided...");
         handleModeChange("GUIDED");
@@ -164,7 +164,7 @@ public:
                 {
                     RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
                     floodfill_points_.pop();
-                    
+
                     RCLCPP_INFO(get_logger(), "Current checkpoint: %.2f, %.2f, %.2f",
                                 floodfill_points_.front().x, floodfill_points_.front().y, floodfill_points_.front().z);
                 }
@@ -566,8 +566,8 @@ public:
     {
         geometry_msgs::msg::Point local_position;
 
-        local_position.x = DRONE_IN_GLOBAL_START_Y - global_position.x;
-        local_position.y = global_position.y - DRONE_IN_GLOBAL_START_X;
+        local_position.x = DRONE_IN_GLOBAL_START_Y - global_position.y;
+        local_position.y = global_position.x - DRONE_IN_GLOBAL_START_X;
         local_position.z = global_position.z - DRONE_IN_GLOBAL_START_Z;
 
         return local_position;
