@@ -7,10 +7,9 @@
 #include "lrs_interfaces/srv/flood_fill.hpp"
 
 #define GRID_IN_CM 5.0
-#define DRONE_GLOBAL_START_X 14.f
-#define DRONE_GLOBAL_START_Y 1.51f
-#define MAP_HEIGHT_PIXEL_OFFSET 25
-#define MAP_WIDTH_PIXEL_OFFSET 8
+
+#define GLOBAL_IN_MAP_START_X 8
+#define GLOBAL_IN_MAP_START_Y 263
 
 class FloodFillNode : public rclcpp::Node
 {
@@ -226,23 +225,19 @@ public:
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
         start = {request->start_point.z, request->start_point.y, request->start_point.x};
         start.x = map_to_height_index((float)start.x, heights); // z
-        start.y = real_to_index((float)start.y); // y
-        start.z = real_to_index((float)start.z); // x
+        start.y = real_to_index((float)start.y);                // y
+        start.z = real_to_index((float)start.z);                // x
 
         // Conversion of local drone coordinations
         {
             Point converted_start = {};
-            converted_start.z = start.z + 8;
-            converted_start.y = 263 - start.y;
+            converted_start.z = 263 - start.y;
+            converted_start.y = start.z + 8;
             converted_start.x = start.x;
 
             start = converted_start;
 
-            RCLCPP_INFO(get_logger(), "Drone to map = [%d,%d,%d]",
-                        converted_start.x, converted_start.y, converted_start.z);
-
-            RCLCPP_INFO(get_logger(), "Drone to map in cm = [%d,%d,%d]",
-                        converted_start.x * 5, converted_start.y * 5, converted_start.z * 5);
+            RCLCPP_INFO(get_logger(), "START in map = [%d, %d, %d]", start.x, start.y, start.z);
         }
 
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
@@ -253,19 +248,14 @@ public:
         // Conversion of global coordinations
         {
             Point converted_goal = {};
-            // From global CS to map CS
-            // converted_goal.z = goal.z + MAP_WIDTH_PIXEL_OFFSET;
-            // converted_goal.y = (sz_map_y - MAP_HEIGHT_PIXEL_OFFSET) - goal.y;
-            // converted_goal.x = goal.x;
-
-            converted_goal.z = goal.z + 8;
-            converted_goal.y = 263 - goal.y;
+            
+            converted_goal.z = 263 - goal.y;
+            converted_goal.y = goal.z + 8;
             converted_goal.x = goal.x;
 
             goal = converted_goal;
 
-            RCLCPP_INFO(get_logger(), "Global to map in cm = [%d,%d,%d]",
-                        converted_goal.x * 5, converted_goal.y * 5, converted_goal.z * 5);
+            RCLCPP_INFO(get_logger(), "GOAL  in map = [%d, %d, %d]", goal.x, goal.y, goal.z);
         }
 
         // Handle map boundaries
@@ -481,8 +471,13 @@ public:
             RCLCPP_INFO(this->get_logger(), "Converting points to global coordination system");
             for (auto &point : simplified)
             {
-                point.z -= 8;
-                point.y = 263 - point.y;
+                Point p;
+
+                p.z = point.y - 8;
+                p.y = 263 - point.z;
+                p.x = point.x;
+
+                point = p;
             }
             RCLCPP_INFO(get_logger(), "Conversion ended");
             RCLCPP_INFO(get_logger(), "Points after conversion");
