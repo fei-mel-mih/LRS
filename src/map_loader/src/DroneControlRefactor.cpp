@@ -57,8 +57,8 @@ public:
         }
         RCLCPP_INFO(get_logger(), "Mavros sitl connected");
 
-        // RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
-        // acquireMission();
+        RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
+        acquireMission();
 
         RCLCPP_INFO(get_logger(), "Changing mode to guided...");
         handleModeChange("GUIDED");
@@ -134,7 +134,7 @@ public:
                     handleTakeOff(current_command_.z, command_precision);
                     break;
                 case lrs_utils::TASK_ENUM::YAW:
-                    handleYaw(current_command_.yaw_value, current_command_.precision == lrs_utils::PRECISION_ENUM::HARD ? 5.0f : 15.0f);
+                    handleYaw(current_command_.yaw_value, current_command_.precision == lrs_utils::PRECISION_ENUM::HARD ? 10.0f : 20.0f);
                     break;
                 case lrs_utils::TASK_ENUM::LANDTAKEOFF:
                     handleLandTakeOff(current_command_.z, command_precision);
@@ -160,7 +160,7 @@ public:
             else
             {
                 // Check if floodfill point was reached
-                if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), FLOODFILL_PRECISION))
+                if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), command_precision))
                 {
                     RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
                     floodfill_points_.pop();
@@ -432,11 +432,14 @@ public:
 
     void handleYaw(float yaw, float precision_degrees)
     {
+        RCLCPP_INFO(get_logger(), "Requested yaw=%.3f deg", yaw);
         yaw = yaw * (M_PI / 180.0);
+        RCLCPP_INFO(get_logger(), "Requested yaw=%.3f rad", yaw);
 
         auto request = lrs_utils::yawToQuaternion(yaw);
         auto pose = geometry_msgs::msg::Pose();
         pose.orientation = request;
+        pose.position = globalToLocal(floodfill_points_.front());
 
         auto header = std_msgs::msg::Header();
         header.frame_id = "control_loop-yaw";
@@ -478,8 +481,6 @@ public:
         geometry_msgs::msg::PoseStamped current_pose = *msg;
         current_position_.position = localToGlobal(current_pose.pose.position);
         current_position_.orientation = current_pose.pose.orientation;
-
-        RCLCPP_INFO(get_logger(), "Current drone global position is: %.2f, %.2f, %.2f", current_position_.position.x, current_position_.position.y, current_position_.position.z);
     }
 
     // Converters
