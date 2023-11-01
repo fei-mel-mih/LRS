@@ -228,35 +228,18 @@ public:
         start.y = real_to_index((float)start.y);                // y
         start.z = real_to_index((float)start.z);                // x
 
-        // Conversion of local drone coordinations
-        {
-            Point converted_start = {};
-            converted_start.z = 263 - start.y;
-            converted_start.y = start.z + 8;
-            converted_start.x = start.x;
-
-            start = converted_start;
-
-            RCLCPP_INFO(get_logger(), "START in map = [%d, %d, %d]", start.x, start.y, start.z);
-        }
+        // Conversion from global to map
+        start = globalToMap(start);
+        RCLCPP_INFO(get_logger(), "START in map = [%d, %d, %d]", start.x, start.y, start.z);
 
         goal = {request->goal_point.z, request->goal_point.y, request->goal_point.x};
         goal.x = map_to_height_index((float)goal.x, heights);
         goal.y = real_to_index((float)goal.y);
         goal.z = real_to_index((float)goal.z);
 
-        // Conversion of global coordinations
-        {
-            Point converted_goal = {};
-            
-            converted_goal.z = 263 - goal.y;
-            converted_goal.y = goal.z + 8;
-            converted_goal.x = goal.x;
-
-            goal = converted_goal;
-
-            RCLCPP_INFO(get_logger(), "GOAL  in map = [%d, %d, %d]", goal.x, goal.y, goal.z);
-        }
+        // Conversion from global to map
+        goal = globalToMap(goal);
+        RCLCPP_INFO(get_logger(), "GOAL  in map = [%d, %d, %d]", goal.x, goal.y, goal.z);
 
         // Handle map boundaries
         RCLCPP_INFO(this->get_logger(), "Converted start to indexes: [%d,%d,%d]", start.x, start.y, start.z);
@@ -470,15 +453,8 @@ public:
             // Convert path to global system
             RCLCPP_INFO(this->get_logger(), "Converting points to global coordination system");
             for (auto &point : simplified)
-            {
-                Point p;
+                point = mapToGlobal(point);
 
-                p.z = point.y - 8;
-                p.y = 263 - point.z;
-                p.x = point.x;
-
-                point = p;
-            }
             RCLCPP_INFO(get_logger(), "Conversion ended");
             RCLCPP_INFO(get_logger(), "Points after conversion");
             std::string log_message = "{";
@@ -504,6 +480,26 @@ public:
         {
             return {};
         }
+    }
+
+    Point mapToGlobal(const Point &point)
+    {
+        Point global_point;
+        global_point.x = point.x;
+        global_point.y = 263 - point.y;
+        global_point.z = point.z - 8;
+
+        return global_point;
+    }
+
+    Point globalToMap(const Point &point)
+    {
+        Point map_point;
+        map_point.x = point.x;
+        map_point.y = 263 - point.y;
+        map_point.z = 8 + point.z;
+
+        return map_point;
     }
 
 private:

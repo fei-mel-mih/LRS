@@ -24,6 +24,7 @@
 #define WAIT_FOR_SERVICE_TIMEOUT 1s
 
 #define TO_CM 100
+#define TO_M (1.0 / 100.0)
 
 #define DRONE_IN_GLOBAL_START_X 13.60f
 #define DRONE_IN_GLOBAL_START_Y 1.50f
@@ -163,6 +164,9 @@ public:
                 {
                     RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
                     floodfill_points_.pop();
+                    
+                    RCLCPP_INFO(get_logger(), "Current checkpoint: %.2f, %.2f, %.2f",
+                                floodfill_points_.front().x, floodfill_points_.front().y, floodfill_points_.front().z);
                 }
 
                 // Generate requested position message
@@ -292,9 +296,9 @@ public:
                     for (const auto &point : response->points)
                     {
                         geometry_msgs::msg::Point conv_point;
-                        conv_point.x = point.z / TO_CM;
-                        conv_point.y = point.y / TO_CM;
-                        conv_point.z = point.x / TO_CM;
+                        conv_point.x = point.z * TO_M;
+                        conv_point.y = point.y * TO_M;
+                        conv_point.z = point.x * TO_M;
 
                         floodfill_points_.push(conv_point);
                         _log_message += std::to_string(conv_point.x) + "\t\t";
@@ -474,6 +478,8 @@ public:
         geometry_msgs::msg::PoseStamped current_pose = *msg;
         current_position_.position = localToGlobal(current_pose.pose.position);
         current_position_.orientation = current_pose.pose.orientation;
+
+        RCLCPP_INFO(get_logger(), "Current drone global position is: %.2f, %.2f, %.2f", current_position_.position.x, current_position_.position.y, current_position_.position.z);
     }
 
     // Converters
