@@ -56,8 +56,8 @@ public:
         }
         RCLCPP_INFO(get_logger(), "Mavros sitl connected");
 
-        // RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
-        // acquireMission();
+        RCLCPP_INFO(get_logger(), "Aquiring mission plan...");
+        acquireMission();
 
         RCLCPP_INFO(get_logger(), "Changing mode to guided...");
         handleModeChange("GUIDED");
@@ -65,28 +65,8 @@ public:
         RCLCPP_INFO(get_logger(), "Arming started...");
         handleArming();
 
-        // RCLCPP_INFO(get_logger(), "Starting control loop...");
-        // controlLoop();
-
-        handleTakeOff(0.25f, 0.05f);
-
-        // Generate requested position message
-        auto header = std_msgs::msg::Header();
-        header.frame_id = "control loop - position control";
-        header.stamp = get_clock()->now();
-
-        auto pose = geometry_msgs::msg::Pose();
-        auto point = geometry_msgs::msg::Point();
-        point.x = 10.f;
-        point.y = 10.f;
-        point.z = 1.5f;
-        pose.position = globalToLocal(point);
-
-        auto message = geometry_msgs::msg::PoseStamped();
-        message.header = header;
-        message.pose = pose;
-
-        local_pos_pub_->publish(message);
+        RCLCPP_INFO(get_logger(), "Starting control loop...");
+        controlLoop();
     }
 
     // Init function
@@ -142,8 +122,10 @@ public:
             command_goal.y = current_command_.y;
             command_goal.z = current_command_.z;
 
-            if (lrs_utils::isLocationInsideRegion(current_position_.position, command_goal, command_precision))
+            if (lrs_utils::isLocationInsideRegion(current_position_.position, command_goal, command_precision) ||
+                current_command_.task == lrs_utils::TASK_ENUM::TAKEOFF)
             {
+                RCLCPP_INFO(get_logger(), "Mission command reached. Performing task...");
                 // Complete action
                 switch (current_command_.task)
                 {
@@ -162,10 +144,14 @@ public:
                 case lrs_utils::TASK_ENUM::NONE:
                     break;
                 }
+                RCLCPP_INFO(get_logger(), "Mission task completed. Moving to next one...");
 
                 // Move to next command
-                converted_commands_.pop();
-                current_command_ = converted_commands_.front();
+                commands_.erase(commands_.begin());
+                current_command_ = commandConverter(commands_.front());
+
+                RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%.2f",
+                            current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
 
                 // Generate new floodfill path
                 acquirePath();
@@ -175,6 +161,7 @@ public:
                 // Check if floodfill point was reached
                 if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), FLOODFILL_PRECISION))
                 {
+                    RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
                     floodfill_points_.pop();
                 }
 
@@ -258,7 +245,7 @@ public:
                 std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
             }
         }
-        RCLCPP_INFO(get_logger(), "Mission plane loaded succesfully");
+        RCLCPP_INFO(get_logger(), "Mission plan loaded succesfully");
     }
 
     void acquirePath()
@@ -281,6 +268,10 @@ public:
 
         auto future = floodfill_cleint_->async_send_request(request);
 
+        RCLCPP_INFO(get_logger(), "Requesting path from start[%.2f, %.2f, %.2f] to goal[%.2f, %.2f, %.2f]",
+                    request->start_point.x, request->start_point.y, request->start_point.z,
+                    request->goal_point.x, request->goal_point.y, request->goal_point.z);
+
         while (rclcpp::ok())
         {
             rclcpp::spin_some(get_node_base_interface());
@@ -301,9 +292,9 @@ public:
                     for (const auto &point : response->points)
                     {
                         geometry_msgs::msg::Point conv_point;
-                        conv_point.x = point.z;
-                        conv_point.y = point.y;
-                        conv_point.z = point.x;
+                        conv_point.x = point.z / TO_CM;
+                        conv_point.y = point.y / TO_CM;
+                        conv_point.z = point.x / TO_CM;
 
                         floodfill_points_.push(conv_point);
                         _log_message += std::to_string(conv_point.x) + "\t\t";
@@ -343,7 +334,7 @@ public:
             rclcpp::spin_some(get_node_base_interface());
             if (current_state_.mode == mode)
             {
-                RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode);
+                RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode.c_str());
                 break;
             }
 
@@ -543,6 +534,7 @@ public:
             }
             else
             {
+                converted_command.yaw_value = -666;
                 RCLCPP_ERROR(this->get_logger(), "Cannot parse task as it doesn't match regular expresion");
             }
         }
@@ -611,7 +603,6 @@ private:
     mavros_msgs::msg::State current_state_;
     geometry_msgs::msg::Pose current_position_;
     std::vector<lrs_interfaces::msg::Command> commands_;
-    std::queue<lrs_utils::ConvertedCommand> converted_commands_;
     std::queue<geometry_msgs::msg::Point> floodfill_points_;
 };
 
