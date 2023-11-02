@@ -436,6 +436,10 @@ public:
         yaw = yaw * (M_PI / 180.0);
         RCLCPP_INFO(get_logger(), "Requested yaw=%.3f rad", yaw);
 
+        RCLCPP_INFO(get_logger(), "Requested precision=%.3f deg", precision_degrees);
+        float precision = precision_degrees * M_PI / 180.0;
+        RCLCPP_INFO(get_logger(), "Requested precision=%.3f rad", precision);
+
         auto request = lrs_utils::yawToQuaternion(yaw);
         auto pose = geometry_msgs::msg::Pose();
         pose.orientation = request;
@@ -457,11 +461,18 @@ public:
         {
             rclcpp::spin_some(get_node_base_interface());
 
-            float yaw_offset = std::abs(yaw - lrs_utils::quaternionToYaw(current_position_.orientation));
+            float current_yaw = lrs_utils::quaternionToYaw(current_position_.orientation);
 
-            if (yaw_offset <= (precision_degrees * M_PI / 180.0))
+            float yaw_difference = std::fmod(yaw - current_yaw, 2.0 * M_PI);
+            if (yaw_difference < 0)
             {
-                RCLCPP_INFO(get_logger(), "Requested yaw reached");
+                yaw_difference += 2.0 * M_PI;
+            }
+            yaw_difference = std::abs(yaw_difference);
+
+            if (yaw_difference <= precision || (2.0 * M_PI - yaw_difference) <= precision)
+            {
+                RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
                 break;
             }
 
