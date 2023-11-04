@@ -13,7 +13,7 @@ namespace lrs_utils
         float sinYaw = 2.0 * (quaternion.w * quaternion.z + quaternion.x * quaternion.y);
         float cosYaw = 1.0 - 2.0 * (quaternion.y * quaternion.y + quaternion.z * quaternion.z);
 
-        return atan2(sinYaw, cosYaw) * 2.0;
+        return atan2(sinYaw, cosYaw);
     }
 
     geometry_msgs::msg::Quaternion yawToQuaternion(float yaw)

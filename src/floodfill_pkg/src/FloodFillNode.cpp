@@ -205,7 +205,7 @@ public:
                     const lrs_interfaces::srv::FloodFill::Response::SharedPtr response)
     {
         RCLCPP_INFO(this->get_logger(), "Starting flood_fill...");
-        RCLCPP_INFO(this->get_logger(), "Request: start=[%d,%d,%d] goal=[%d,%d,%d]",
+        RCLCPP_INFO(this->get_logger(), "Request: start=[%d,%d,%d]cm goal=[%d,%d,%d]cm",
                     request->start_point.x, request->start_point.y, request->start_point.z,
                     request->goal_point.x, request->goal_point.y, request->goal_point.z);
 
@@ -216,10 +216,14 @@ public:
         std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
         std::vector<int> heights = map_reader.getHeights();
 
+        for (const auto &height : heights)
+        {
+            RCLCPP_INFO(get_logger(), std::to_string(height));
+        }
+
         int sz_map_x = map.size();
         int sz_map_y = map[0].size();
         int sz_map_z = map[0][0].size();
-        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
 
         // We need to recalculate real position to indices
         // [START POINT] - TRANSFORM REAL COORDINATES TO INDICES OF MAP 3D VECTOR
@@ -240,11 +244,9 @@ public:
         // Conversion from global to map
         goal = globalToMap(goal);
         RCLCPP_INFO(get_logger(), "GOAL  in map = [%d, %d, %d]", goal.x, goal.y, goal.z);
+        RCLCPP_INFO(this->get_logger(), "Map dimensions: %dx%dx%d", sz_map_x, sz_map_y, sz_map_z);
 
         // Handle map boundaries
-        RCLCPP_INFO(this->get_logger(), "Converted start to indexes: [%d,%d,%d]", start.x, start.y, start.z);
-        RCLCPP_INFO(this->get_logger(), "Converted goal to indexes: [%d,%d,%d]", goal.x, goal.y, goal.z);
-
         // Check start point
         if ((start.x >= sz_map_x || start.y >= sz_map_y || start.z >= sz_map_z) ||
             (start.x < 0 || start.y < 0 || start.z < 0))

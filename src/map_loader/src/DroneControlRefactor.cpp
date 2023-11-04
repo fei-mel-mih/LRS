@@ -151,7 +151,7 @@ public:
                 commands_.erase(commands_.begin());
                 current_command_ = commandConverter(commands_.front());
 
-                RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%.2f",
+                RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%d",
                             current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
 
                 // Generate new floodfill path
@@ -272,7 +272,7 @@ public:
 
         auto future = floodfill_cleint_->async_send_request(request);
 
-        RCLCPP_INFO(get_logger(), "Requesting path from start[%.2f, %.2f, %.2f] to goal[%.2f, %.2f, %.2f]",
+        RCLCPP_INFO(get_logger(), "Requesting path from start[%d, %d, %d] to goal[%d, %d, %d]",
                     request->start_point.x, request->start_point.y, request->start_point.z,
                     request->goal_point.x, request->goal_point.y, request->goal_point.z);
 
@@ -454,29 +454,27 @@ public:
         message.pose = pose;
 
         local_pos_pub_->publish(message);
-        RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%f y=%f z=%f",
+        RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%ff y=%f z=%f",
                     request.w, request.x, request.y, request.z);
 
         while (rclcpp::ok())
         {
             rclcpp::spin_some(get_node_base_interface());
 
-            float current_yaw = lrs_utils::quaternionToYaw(current_position_.orientation);
+            float current_yaw = std::abs(lrs_utils::quaternionToYaw(current_position_.orientation));
+            RCLCPP_INFO(get_logger(), "Current yaw=%.2f", current_yaw);
 
-            float yaw_difference = std::fmod(yaw - current_yaw, 2.0 * M_PI);
-            if (yaw_difference < 0)
-            {
-                yaw_difference += 2.0 * M_PI;
-            }
-            yaw_difference = std::abs(yaw_difference);
-
-            if (yaw_difference <= precision || (2.0 * M_PI - yaw_difference) <= precision)
+            float yaw_difference = yaw - current_yaw;
+            RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
+            
+            RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
+            if (yaw_difference <= precision)
             {
                 RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
                 break;
             }
 
-            RCLCPP_INFO(get_logger(), "Drone rotating");
+            RCLCPP_INFO(get_logger(), "Drone rotating. Current yaw=%.2f  Yaw difference=%.2f  Requested yaw=%.2f", current_yaw, yaw_difference, yaw);
             std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
         }
     }
