@@ -139,6 +139,7 @@ std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vect
                 if (original_map[i][j][k] == 1)
                 {
                     // Set the neighbors of temp_map[i][j][k] to 1 along the Y and Z axes
+                    // TODO: vymazat inflate okolo z osi (teda x v mape)
                     for (int x = -4; x <= 4; ++x)
                     {
                         for (int y = -8; y <= 8; ++y)
