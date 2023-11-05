@@ -20,7 +20,7 @@
 #include "lrs_interfaces/srv/flood_fill.hpp"
 
 #define WHILE_CHECK_TIMEOUT 500ms
-#define WHILE_CHECK_POSITION_TIMEOUT 100ms
+#define WHILE_CHECK_POSITION_TIMEOUT 250ms
 #define WAIT_FOR_SERVICE_TIMEOUT 1s
 
 #define TO_CM 100
@@ -159,6 +159,14 @@ public:
             }
             else
             {
+                if (floodfill_points_.empty())
+                {
+                    RCLCPP_ERROR(get_logger(), "Missing floodfill points! Landing...");
+                    handleLanding();
+                    rclcpp::shutdown();
+                    return;
+                }
+                
                 // Check if floodfill point was reached
                 if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), command_precision))
                 {
