@@ -16,7 +16,7 @@ MapReader::MapReader()
         loadFile(filename);
     }
 
-    map = inflateMap(map);
+    this->inflated_map = inflateMap(this->map);
 }
 
 void MapReader::printMap() const
@@ -47,6 +47,11 @@ void MapReader::printHeights() const
 const std::vector<std::vector<std::vector<int>>> &MapReader::getMap() const
 {
     return map;
+}
+
+const std::vector<std::vector<std::vector<int>>> &MapReader::getInflatedMap() const
+{
+    return inflated_map;
 }
 
 const std::vector<int> &MapReader::getHeights() const
@@ -139,19 +144,15 @@ std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vect
                 if (original_map[i][j][k] == 1)
                 {
                     // Set the neighbors of temp_map[i][j][k] to 1 along the Y and Z axes
-                    for (int x = -4; x <= 4; ++x)
+                    for (int y = -8; y <= 8; ++y)
                     {
-                        for (int y = -8; y <= 8; ++y)
+                        for (int z = -8; z <= 8; ++z)
                         {
-                            for (int z = -8; z <= 8; ++z)
+                            // Check for out of bounds
+                            if (j + y >= 0 && j + y < (int)original_map[i].size() &&
+                                k + z >= 0 && k + z < (int)original_map[i][j].size())
                             {
-                                // Check for out of bounds
-                                if (i + x >= 0 && i + x < (int)original_map.size() &&
-                                    j + y >= 0 && j + y < (int)original_map[i].size() &&
-                                    k + z >= 0 && k + z < (int)original_map[i][j].size())
-                                {
-                                    temp_map[i + x][j + y][k + z] = 1;
-                                }
+                                temp_map[i][j + y][k + z] = 1;
                             }
                         }
                     }

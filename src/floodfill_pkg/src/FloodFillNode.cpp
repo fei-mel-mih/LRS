@@ -151,7 +151,7 @@ public:
         Point A = path[0];
         simplified_path.push_back(A);
 
-        for (int i = 1; i < path.size(); i++)
+        for (int i = 1; i < (int) path.size(); i++)
         {
             if (!has_line_of_sight(A, path[i], map))
             {
@@ -178,6 +178,8 @@ public:
         if (foundIndex == -1)
         {
             RCLCPP_ERROR(this->get_logger(), "Height value of %d is not possible!", value);
+            RCLCPP_INFO(get_logger(), "Setting heigh to maximum value");
+            foundIndex = heights.back();
         }
         return foundIndex;
     }
@@ -192,7 +194,7 @@ public:
     std::vector<Point> path_to_real(std::vector<Point> &path, std::vector<int> &heights)
     {
         std::vector<Point> copy = path;
-        for (int i = 0; i < copy.size(); i++)
+        for (int i = 0; i < (int) copy.size(); i++)
         {
             copy[i].x = heights[copy[i].x];
             copy[i].y *= GRID_IN_CM;
@@ -213,13 +215,8 @@ public:
 
         Point start;
         Point goal;
-        std::vector<std::vector<std::vector<int>>> map = map_reader.getMap();
+        std::vector<std::vector<std::vector<int>>> map = map_reader.getInflatedMap();
         std::vector<int> heights = map_reader.getHeights();
-
-        for (const auto &height : heights)
-        {
-            RCLCPP_INFO(get_logger(), std::to_string(height));
-        }
 
         int sz_map_x = map.size();
         int sz_map_y = map[0].size();
@@ -264,9 +261,6 @@ public:
             return;
         }
 
-        RCLCPP_INFO(get_logger(), "Map start value=%d", map[start.x][start.y][start.z]);
-        RCLCPP_INFO(get_logger(), "Map goal value=%d", map[goal.x][goal.y][goal.z]);
-
         // Define the 6 face neighbor offsets.
         int directions[6][3] = {
             {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
@@ -274,8 +268,6 @@ public:
         int x_len = map.size();
         int y_len = map[0].size();
         int z_len = map[0][0].size();
-
-        int deltas[3] = {-1, 0, 1};
 
         std::queue<Point> q;
         q.push(goal);
@@ -288,37 +280,22 @@ public:
             q.pop();
 
             int current_value = map[current_point.x][current_point.y][current_point.z];
-            // 26 susednost
-            for (int dx : deltas)
-            {
-                for (int dy : deltas)
-                {
-                    for (int dz : deltas)
-                    {
-                        if (dx == 0 && dy == 0 && dz == 0)
-                        {
-                            continue;
-                        }
-                        Point neighbor{current_point.x + dx, current_point.y + dy, current_point.z + dz};
 
-                        if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] == 0)
-                        {
-                            map[neighbor.x][neighbor.y][neighbor.z] = current_value + 1;
-                            q.push(neighbor);
-                        }
-                    }
+            // 6 susednost
+            for (int i = 0; i < 6; ++i)
+            {
+                Point neighbor{current_point.x + directions[i][0], current_point.y + directions[i][1], current_point.z + directions[i][2]};
+
+                // use inlined boundary checks.
+                if (0 <= neighbor.x && neighbor.x < x_len &&
+                    0 <= neighbor.y && neighbor.y < y_len &&
+                    0 <= neighbor.z && neighbor.z < z_len &&
+                    map[neighbor.x][neighbor.y][neighbor.z] == 0)
+                {
+                    map[neighbor.x][neighbor.y][neighbor.z] = current_value + 1;
+                    q.push(neighbor);
                 }
             }
-            // 6 susednost
-            // for (int i = 0; i < 6; ++i) {
-            //     Point neighbor{current_point.x + directions[i][0], current_point.y + directions[i][1], current_point.z + directions[i][2]};
-
-            //     // Use inlined boundary checks.
-            //     if (0 <= neighbor.x && neighbor.x < x_len && 0 <= neighbor.y && neighbor.y < y_len && 0 <= neighbor.z && neighbor.z < z_len && map[neighbor.x][neighbor.y][neighbor.z] == 0) {
-            //         map[neighbor.x][neighbor.y][neighbor.z] = current_value + 1;
-            //         q.push(neighbor);
-            //     }f
-            // }
         }
 
         RCLCPP_INFO(this->get_logger(), "Start and Goal are equal: %s", std::to_string(start == goal).c_str());
@@ -354,17 +331,6 @@ public:
 
         std::vector<lrs_interfaces::msg::Point> point_list = converToPointList(points);
 
-        std::string cv_points = "";
-        for (const auto &p : point_list)
-        {
-            cv_points += "[";
-            cv_points += std::to_string(p.x) + ", ";
-            cv_points += std::to_string(p.y) + ", ";
-            cv_points += std::to_string(p.z) + ", ";
-            cv_points += "]\n";
-        }
-        RCLCPP_INFO(get_logger(), "Final converted points: %s", cv_points.c_str());
-
         response->points = point_list;
         response->success = true;
 
@@ -384,62 +350,83 @@ public:
         std::vector<Point> path;
         Point current_position = start;
         Point min_neighbour;
-        int min_neighbour_value = std::numeric_limits<int>::max();
         bool found;
 
         int x_len = map.size();
         int y_len = map[0].size();
         int z_len = map[0][0].size();
 
-        int deltas[3] = {-1, 0, 1};
+        int directions[6][3] = { {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1} };
 
         while (current_position != goal)
-        {
-            // std::cout << "point " << current_position.toString() << ":\n";
-            path.push_back(current_position);
-            int current_value = map[current_position.x][current_position.y][current_position.z];
-            // Set it to the current value so we can find a lesser value
-            int min_neighbour_value = current_value;
-            found = false; // Reset
-            for (int dx : deltas)
-            {
-                for (int dy : deltas)
-                {
-                    for (int dz : deltas)
-                    {
-                        if (dx == 0 && dy == 0 && dz == 0)
-                        {
-                            continue;
-                        }
-                        if (0 <= current_position.x + dx &&
-                            current_position.x + dx < x_len &&
-                            0 <= current_position.y + dy &&
-                            current_position.y + dy < y_len &&
-                            0 <= current_position.z + dz &&
-                            current_position.z + dz < z_len)
-                        {
-                            Point neighbor{current_position.x + dx, current_position.y + dy, current_position.z + dz};
-                            int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
+		{
+			// std::cout << "point " << current_position.toString() << ":\n";
+			path.push_back(current_position);
+			int current_value = map[current_position.x][current_position.y][current_position.z];
+			// Set it to the current value so we can find a lesser value
+			int min_neighbour_value = current_value;
+			found = false; // Reset
+			// 6 susednost
+			for (int i = 0; i < 6; ++i) {
+				if (0 <= current_position.x + directions[i][0] &&
+					current_position.x + directions[i][0] < x_len &&
+					0 <= current_position.y + directions[i][1] &&
+					current_position.y + directions[i][1] < y_len &&
+					0 <= current_position.z + directions[i][2] &&
+					current_position.z + directions[i][2] < z_len)
+				{
 
-                            if (neighbor_value < min_neighbour_value && neighbor_value != 1)
-                            {
-                                // std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
-                                min_neighbour = neighbor;
-                                min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+					Point neighbor{ current_position.x + directions[i][0], current_position.y + directions[i][1], current_position.z + directions[i][2] };
+					int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
 
-                                found = true;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!found)
-            {
-                RCLCPP_ERROR(this->get_logger(), "Path was not found!");
-                break;
-            }
-            current_position = min_neighbour;
-        }
+					if (neighbor_value < min_neighbour_value && neighbor_value != 1)
+					{
+						min_neighbour = neighbor;
+						min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+
+						found = true;
+					}
+				}
+			}
+
+			//for (int dx : deltas)
+			//{
+			//	for (int dy : deltas)
+			//	{
+			//		for (int dz : deltas)
+			//		{
+			//			if (dx == 0 && dy == 0 && dz == 0)
+			//			{
+			//				continue;
+			//			}
+			//			if (0 <= current_position.x + dx &&
+			//				current_position.x + dx < x_len &&
+			//				0 <= current_position.y + dy &&
+			//				current_position.y + dy < y_len &&
+			//				0 <= current_position.z + dz &&
+			//				current_position.z + dz < z_len)
+			//			{
+			//				Point neighbor{ current_position.x + dx, current_position.y + dy, current_position.z + dz };
+			//				int neighbor_value = map[neighbor.x][neighbor.y][neighbor.z];
+
+			//				if (neighbor_value < min_neighbour_value && neighbor_value != 1)
+			//				{
+			//					// std::cout << "chosen neighbor " << neighbor.toString() << ":\n";
+			//					min_neighbour = neighbor;
+			//					min_neighbour_value = map[neighbor.x][neighbor.y][neighbor.z];
+
+			//					found = true;
+			//				}
+			//			}
+			//		}
+			//	}
+			//}
+			if (!found)
+			{
+				break;
+			}
+			current_position = min_neighbour;
+		}
 
         // If path was found
         if (found)
@@ -457,7 +444,6 @@ public:
             for (auto &point : simplified)
                 point = mapToGlobal(point);
 
-            RCLCPP_INFO(get_logger(), "Conversion ended");
             RCLCPP_INFO(get_logger(), "Points after conversion");
             std::string log_message = "{";
             for (const auto &p : simplified)
@@ -472,6 +458,7 @@ public:
             }
             log_message += "}";
             RCLCPP_INFO(this->get_logger(), "%s", log_message.c_str());
+            RCLCPP_INFO(get_logger(), "Conversion ended");
 
             // now lets reverse the indices to real coordinates
             std::vector<Point> real_simplified = path_to_real(simplified, heights);
@@ -488,8 +475,8 @@ public:
     {
         Point global_point;
         global_point.x = point.x;
-        global_point.y = 263 - point.y;
-        global_point.z = point.z - 8;
+        global_point.y = GLOBAL_IN_MAP_START_Y - point.y;
+        global_point.z = point.z - GLOBAL_IN_MAP_START_X;
 
         return global_point;
     }
@@ -498,8 +485,8 @@ public:
     {
         Point map_point;
         map_point.x = point.x;
-        map_point.y = 263 - point.y;
-        map_point.z = 8 + point.z;
+        map_point.y = GLOBAL_IN_MAP_START_Y - point.y;
+        map_point.z = GLOBAL_IN_MAP_START_X + point.z;
 
         return map_point;
     }
@@ -526,19 +513,6 @@ private:
 
             converted_points.push_back(p);
         }
-
-        RCLCPP_INFO(get_logger(), "Converted to PointList");
-
-        std::string cv_points = "";
-        for (const auto &p : converted_points)
-        {
-            cv_points += "[";
-            cv_points += std::to_string(p.x) + ", ";
-            cv_points += std::to_string(p.y) + ", ";
-            cv_points += std::to_string(p.z) + ", ";
-            cv_points += "]\n";
-        }
-        RCLCPP_INFO(get_logger(), "Converted points: %s", cv_points.c_str());
 
         return converted_points;
     }
