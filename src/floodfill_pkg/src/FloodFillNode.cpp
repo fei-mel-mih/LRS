@@ -177,9 +177,8 @@ public:
         }
         if (foundIndex == -1)
         {
-            RCLCPP_ERROR(this->get_logger(), "Height value of %d is not possible!", value);
-            RCLCPP_INFO(get_logger(), "Setting heigh to maximum value");
-            foundIndex = heights.back();
+            RCLCPP_ERROR(this->get_logger(), "Height value of %f is not possible!", value);
+            foundIndex = heights.size() - 1;
         }
         return foundIndex;
     }

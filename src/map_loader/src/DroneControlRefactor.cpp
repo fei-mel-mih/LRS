@@ -176,6 +176,7 @@ public:
 
                 auto pose = geometry_msgs::msg::Pose();
                 pose.position = globalToLocal(floodfill_points_.front());
+                RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
 
                 auto message = geometry_msgs::msg::PoseStamped();
                 message.header = header;
