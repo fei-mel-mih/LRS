@@ -19,7 +19,7 @@
 #include "lrs_interfaces/srv/mission_command.hpp"
 #include "lrs_interfaces/srv/flood_fill.hpp"
 
-#define WHILE_CHECK_TIMEOUT 500ms
+#define WHILE_CHECK_TIMEOUT 250ms
 #define WHILE_CHECK_POSITION_TIMEOUT 250ms
 #define WAIT_FOR_SERVICE_TIMEOUT 1s
 
@@ -266,14 +266,14 @@ public:
         waitForService(floodfill_cleint_, "flood_fill", WAIT_FOR_SERVICE_TIMEOUT);
 
         lrs_interfaces::msg::Point start;
-        start.x = current_position_.position.x * TO_CM;
-        start.y = current_position_.position.y * TO_CM;
-        start.z = current_position_.position.z * TO_CM;
+        start.x = (int) (current_position_.position.x * TO_CM);
+        start.y = (int) (current_position_.position.y * TO_CM);
+        start.z = (int) (current_position_.position.z * TO_CM);
 
         lrs_interfaces::msg::Point goal;
-        goal.x = current_command_.x * TO_CM;
-        goal.y = current_command_.y * TO_CM;
-        goal.z = current_command_.z * TO_CM;
+        goal.x = (int) (current_command_.x * TO_CM);
+        goal.y = (int) (current_command_.y * TO_CM);
+        goal.z = (int) (current_command_.z * TO_CM);
 
         lrs_interfaces::srv::FloodFill::Request::SharedPtr request = std::make_shared<lrs_interfaces::srv::FloodFill::Request>();
         request->start_point = start;
