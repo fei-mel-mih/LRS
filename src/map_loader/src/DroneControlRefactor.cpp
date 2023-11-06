@@ -33,8 +33,8 @@
 #define MAP_MAX_WIDTH 18.20f
 #define MAP_MAX_HEIGHT 13.50f
 
-#define HARD_PRECISION 0.05f
-#define SOFT_PRECISION 0.15f
+#define HARD_PRECISION 0.10f
+#define SOFT_PRECISION 0.30f
 #define FLOODFILL_PRECISION 0.20f
 
 using namespace std::chrono_literals;
@@ -143,6 +143,7 @@ public:
                     handleLanding();
                     break;
                 case lrs_utils::TASK_ENUM::NONE:
+                    RCLCPP_INFO(get_logger(), "Performing none operation...");
                     break;
                 }
                 RCLCPP_INFO(get_logger(), "Mission task completed. Moving to next one...");
@@ -166,12 +167,13 @@ public:
                     rclcpp::shutdown();
                     return;
                 }
-                
+
                 // Check if floodfill point was reached
                 if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), command_precision))
                 {
                     RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
-                    floodfill_points_.pop();
+                    if (floodfill_points_.size() > 1)
+                        floodfill_points_.pop();
 
                     RCLCPP_INFO(get_logger(), "Current checkpoint: %.2f, %.2f, %.2f",
                                 floodfill_points_.front().x, floodfill_points_.front().y, floodfill_points_.front().z);
@@ -266,14 +268,14 @@ public:
         waitForService(floodfill_cleint_, "flood_fill", WAIT_FOR_SERVICE_TIMEOUT);
 
         lrs_interfaces::msg::Point start;
-        start.x = (int) (current_position_.position.x * TO_CM);
-        start.y = (int) (current_position_.position.y * TO_CM);
-        start.z = (int) (current_position_.position.z * TO_CM);
+        start.x = (int)(current_position_.position.x * TO_CM);
+        start.y = (int)(current_position_.position.y * TO_CM);
+        start.z = (int)(current_position_.position.z * TO_CM);
 
         lrs_interfaces::msg::Point goal;
-        goal.x = (int) (current_command_.x * TO_CM);
-        goal.y = (int) (current_command_.y * TO_CM);
-        goal.z = (int) (current_command_.z * TO_CM);
+        goal.x = (int)(current_command_.x * TO_CM);
+        goal.y = (int)(current_command_.y * TO_CM);
+        goal.z = (int)(current_command_.z * TO_CM);
 
         lrs_interfaces::srv::FloodFill::Request::SharedPtr request = std::make_shared<lrs_interfaces::srv::FloodFill::Request>();
         request->start_point = start;
@@ -394,6 +396,7 @@ public:
             rclcpp::spin_some(get_node_base_interface());
 
             auto z = current_position_.position.z;
+            RCLCPP_INFO(get_logger(), "Current z=%.2f requested=%.2f", z, request->altitude);
 
             bool b_tookoff = (z >= (request->altitude - precision) && (z <= (request->altitude + precision)));
 
@@ -475,7 +478,7 @@ public:
 
             float yaw_difference = yaw - current_yaw;
             RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
-            
+
             RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
             if (yaw_difference <= precision)
             {
