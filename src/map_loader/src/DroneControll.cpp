@@ -815,7 +815,7 @@ private:
 
 					// Set new checkpoints
 					std::string _log_message = "\n--- Flood fill points ---\nX\t\tY\t\tZ\n";
-					for (const auto &point : response->points.points)
+					for (const auto &point : response->points)
 					{
 						lrs_interfaces::msg::Point converted_point = point;
 						converted_point.x = point.z;

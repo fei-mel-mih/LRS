@@ -24,6 +24,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Command.msg"
   "srv/FloodFill.srv"
   "srv/MissionCommand.srv"
+  "srv/DronePauseContinue.srv"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
