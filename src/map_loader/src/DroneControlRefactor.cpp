@@ -18,6 +18,7 @@
 
 #include "lrs_interfaces/srv/mission_command.hpp"
 #include "lrs_interfaces/srv/flood_fill.hpp"
+#include "lrs_interfaces/srv/drone_pause_continue.hpp"
 
 #define WHILE_CHECK_TIMEOUT 250ms
 #define WHILE_CHECK_POSITION_TIMEOUT 250ms
@@ -96,6 +97,10 @@ public:
         floodfill_cleint_ = this->create_client<lrs_interfaces::srv::FloodFill>("floodfill_service");
         mission_client_ = this->create_client<lrs_interfaces::srv::MissionCommand>("mission_loader_service");
         land_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/land");
+
+        drone_pause_service_ = this->create_service<lrs_interfaces::srv::DronePauseContinue>(
+            "drone_control/pause",
+            std::bind(&DroneControlNode::dronePauseCallback, this, std::placeholders::_1, std::placeholders::_2));
     }
 
     // Control loop function
@@ -504,6 +509,17 @@ public:
         current_position_.orientation = current_pose.pose.orientation;
     }
 
+    void dronePauseCallback(const lrs_interfaces::srv::DronePauseContinue::Request::SharedPtr request,
+                            const lrs_interfaces::srv::DronePauseContinue::Response::SharedPtr response)
+    {
+        RCLCPP_INFO(get_logger(), "Drone Pause service called: Pause=%d Continue=%d", request->pause, !request->pause);
+        // TODO: implement pause and save state logic
+
+        response->success = true;
+        RCLCPP_INFO(get_logger(), "Drone pause service ended");
+        return;
+    }
+
     // Converters
     lrs_utils::ConvertedCommand commandConverter(const lrs_interfaces::msg::Command &command)
     {
@@ -625,6 +641,9 @@ private:
     // Custom clients
     rclcpp::Client<lrs_interfaces::srv::FloodFill>::SharedPtr floodfill_cleint_;
     rclcpp::Client<lrs_interfaces::srv::MissionCommand>::SharedPtr mission_client_;
+
+    // Custom services
+    rclcpp::Service<lrs_interfaces::srv::DronePauseContinue>::SharedPtr drone_pause_service_;
 
     // Variables
     lrs_utils::ConvertedCommand current_command_;
