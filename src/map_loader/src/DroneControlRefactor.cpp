@@ -40,8 +40,18 @@
 
 using namespace std::chrono_literals;
 
+static bool is_paused = false;
+
 class DroneControlNode : public rclcpp::Node
 {
+private:
+    struct SavedState
+    {
+        std::queue<geometry_msgs::msg::Point> saved_floodfill_points;
+        lrs_utils::ConvertedCommand saved_command;
+        geometry_msgs::msg::Pose saved_pose;
+    };
+
 public:
     DroneControlNode() : Node("drone_control_node")
     {
@@ -100,7 +110,7 @@ public:
 
         drone_pause_service_ = this->create_service<lrs_interfaces::srv::DronePauseContinue>(
             "drone_control/pause",
-            std::bind(&DroneControlNode::dronePauseCallback, this, std::placeholders::_1, std::placeholders::_2));
+            std::bind(&DroneControlNode::pauseContinueDroneCallback, this, std::placeholders::_1, std::placeholders::_2));
     }
 
     // Control loop function
@@ -109,6 +119,12 @@ public:
         while (rclcpp::ok() && !commands_.empty())
         {
             rclcpp::spin_some(get_node_base_interface());
+
+            if (is_paused)
+            {
+                RCLCPP_ERROR(get_logger(), "controlLoop - DRONE IS PAUSED");
+                return;
+            }
 
             float command_precision;
             switch (current_command_.precision)
@@ -388,6 +404,12 @@ public:
 
     void handleTakeOff(float altitude, float precision)
     {
+        if (is_paused)
+        {
+            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
+            return;
+        }
+
         waitForService(takeoff_client_, "take-off", WAIT_FOR_SERVICE_TIMEOUT);
 
         mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
@@ -441,6 +463,12 @@ public:
 
     void handleLandTakeOff(float altitude, float precision)
     {
+        if (is_paused)
+        {
+            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
+            return;
+        }
+
         handleLanding();
         handleModeChange("GUIDED");
         handleArming();
@@ -449,6 +477,12 @@ public:
 
     void handleYaw(float yaw, float precision_degrees)
     {
+        if (is_paused)
+        {
+            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
+            return;
+        }
+
         RCLCPP_INFO(get_logger(), "Requested yaw=%.3f deg", yaw);
         yaw = yaw * (M_PI / 180.0);
         RCLCPP_INFO(get_logger(), "Requested yaw=%.3f rad", yaw);
@@ -509,17 +543,50 @@ public:
         current_position_.orientation = current_pose.pose.orientation;
     }
 
-    void dronePauseCallback(const lrs_interfaces::srv::DronePauseContinue::Request::SharedPtr request,
-                            const lrs_interfaces::srv::DronePauseContinue::Response::SharedPtr response)
+    void pauseContinueDroneCallback(const lrs_interfaces::srv::DronePauseContinue::Request::SharedPtr request,
+                                    const lrs_interfaces::srv::DronePauseContinue::Response::SharedPtr response)
     {
-        RCLCPP_INFO(get_logger(), "Drone Pause service called: Pause=%d Continue=%d", request->pause, !request->pause);
-        // TODO: implement pause and save state logic
+        if (request->pause)
+        {
+            RCLCPP_INFO(get_logger(), "Request for pause received");
 
-        response->success = true;
-        RCLCPP_INFO(get_logger(), "Drone pause service ended");
-        return;
+            // Pause drone
+            is_paused = true;
+            saved_state.saved_command = current_command_;
+            saved_state.saved_floodfill_points = floodfill_points_;
+            saved_state.saved_pose = current_position_;
+
+            // Set requested position to current position
+            // auto header = std_msgs::msg::Header();
+            // header.frame_id = "pauseContinueDroneCallback";
+            // header.stamp = get_clock()->now();
+
+            // auto pose = geometry_msgs::msg::Pose();
+            // pose.position = globalToLocal(current_position_.position);
+            // RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
+
+            // auto message = geometry_msgs::msg::PoseStamped();
+            // message.header = header;
+            // message.pose = pose;
+
+            // local_pos_pub_->publish(message);
+
+            response->success = true;
+        }
+        else
+        {
+            RCLCPP_INFO(get_logger(), "Request for continue received");
+
+            // Continue drone
+            current_command_ = saved_state.saved_command;
+            floodfill_points_ = saved_state.saved_floodfill_points;
+            is_paused = false;
+
+            rclcpp::spin_some(get_node_base_interface());
+
+            response->success = true;
+        }
     }
-
     // Converters
     lrs_utils::ConvertedCommand commandConverter(const lrs_interfaces::msg::Command &command)
     {
@@ -651,6 +718,7 @@ private:
     geometry_msgs::msg::Pose current_position_;
     std::vector<lrs_interfaces::msg::Command> commands_;
     std::queue<geometry_msgs::msg::Point> floodfill_points_;
+    SavedState saved_state;
 };
 
 int main(int argc, char **argv)
