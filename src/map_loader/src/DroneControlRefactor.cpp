@@ -120,100 +120,89 @@ public:
         {
             rclcpp::spin_some(get_node_base_interface());
 
-            if (is_paused)
+            if (!is_paused)
             {
-                RCLCPP_ERROR(get_logger(), "controlLoop - DRONE IS PAUSED");
-                return;
-            }
-
-            float command_precision;
-            switch (current_command_.precision)
-            {
-            case lrs_utils::PRECISION_ENUM::HARD:
-                command_precision = HARD_PRECISION;
-                break;
-
-            case lrs_utils::PRECISION_ENUM::SOFT:
-                command_precision = SOFT_PRECISION;
-                break;
-            }
-
-            // Check if mission command was reached
-            geometry_msgs::msg::Point command_goal;
-            command_goal.x = current_command_.x;
-            command_goal.y = current_command_.y;
-            command_goal.z = current_command_.z;
-
-            if (lrs_utils::isLocationInsideRegion(current_position_.position, command_goal, command_precision) ||
-                current_command_.task == lrs_utils::TASK_ENUM::TAKEOFF)
-            {
-                RCLCPP_INFO(get_logger(), "Mission command reached. Performing task...");
-                // Complete action
-                switch (current_command_.task)
+                float command_precision;
+                switch (current_command_.precision)
                 {
-                case lrs_utils::TASK_ENUM::TAKEOFF:
-                    handleTakeOff(current_command_.z, command_precision);
+                case lrs_utils::PRECISION_ENUM::HARD:
+                    command_precision = HARD_PRECISION;
                     break;
-                case lrs_utils::TASK_ENUM::YAW:
-                    handleYaw(current_command_.yaw_value, current_command_.precision == lrs_utils::PRECISION_ENUM::HARD ? 10.0f : 20.0f);
-                    break;
-                case lrs_utils::TASK_ENUM::LANDTAKEOFF:
-                    handleLandTakeOff(current_command_.z, command_precision);
-                    break;
-                case lrs_utils::TASK_ENUM::LAND:
-                    handleLanding();
-                    break;
-                case lrs_utils::TASK_ENUM::NONE:
-                    RCLCPP_INFO(get_logger(), "Performing none operation...");
+
+                case lrs_utils::PRECISION_ENUM::SOFT:
+                    command_precision = SOFT_PRECISION;
                     break;
                 }
-                RCLCPP_INFO(get_logger(), "Mission task completed. Moving to next one...");
 
-                // Move to next command
-                commands_.erase(commands_.begin());
-                current_command_ = commandConverter(commands_.front());
+                // Check if mission command was reached
+                geometry_msgs::msg::Point command_goal;
+                command_goal.x = current_command_.x;
+                command_goal.y = current_command_.y;
+                command_goal.z = current_command_.z;
 
-                RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%d",
-                            current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
+                if (lrs_utils::isLocationInsideRegion(current_position_.position, command_goal, command_precision) ||
+                    current_command_.task == lrs_utils::TASK_ENUM::TAKEOFF)
+                {
+                    RCLCPP_INFO(get_logger(), "Mission command reached. Performing task...");
+                    // Complete action
+                    switch (current_command_.task)
+                    {
+                    case lrs_utils::TASK_ENUM::TAKEOFF:
+                        handleTakeOff(current_command_.z, command_precision); // TODO: Handle after pause
+                        break;
+                    case lrs_utils::TASK_ENUM::YAW:
+                        handleYaw(current_command_.yaw_value, current_command_.precision == lrs_utils::PRECISION_ENUM::HARD ? 10.0f : 20.0f);
+                        break;
+                    case lrs_utils::TASK_ENUM::LANDTAKEOFF:
+                        handleLandTakeOff(current_command_.z, command_precision);
+                        break;
+                    case lrs_utils::TASK_ENUM::LAND:
+                        handleLanding();
+                        break;
+                    case lrs_utils::TASK_ENUM::NONE:
+                        RCLCPP_INFO(get_logger(), "Performing none operation...");
+                        break;
+                    }
+                    RCLCPP_INFO(get_logger(), "Mission task completed. Moving to next one...");
 
-                // Generate new floodfill path
-                acquirePath();
+                    // Move to next command
+                    commands_.erase(commands_.begin());
+                    current_command_ = commandConverter(commands_.front());
+
+                    RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%d",
+                                current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
+
+                    // Generate new floodfill path
+                    acquirePath();
+                }
+                else
+                {
+                    if (floodfill_points_.empty())
+                    {
+                        RCLCPP_ERROR(get_logger(), "Missing floodfill points! Landing...");
+                        handleLanding();
+                        rclcpp::shutdown();
+                        return;
+                    }
+
+                    // Check if floodfill point was reached
+                    if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), command_precision))
+                    {
+                        RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
+                        if (floodfill_points_.size() > 1)
+                            floodfill_points_.pop();
+
+                        RCLCPP_INFO(get_logger(), "Current checkpoint: %.2f, %.2f, %.2f",
+                                    floodfill_points_.front().x, floodfill_points_.front().y, floodfill_points_.front().z);
+                    }
+
+                    // Generate requested position message
+                    publishRequestPosition("control_loop", globalToLocal(floodfill_points_.front()));
+                }
             }
             else
             {
-                if (floodfill_points_.empty())
-                {
-                    RCLCPP_ERROR(get_logger(), "Missing floodfill points! Landing...");
-                    handleLanding();
-                    rclcpp::shutdown();
-                    return;
-                }
-
-                // Check if floodfill point was reached
-                if (lrs_utils::isLocationInsideRegion(current_position_.position, floodfill_points_.front(), command_precision))
-                {
-                    RCLCPP_INFO(get_logger(), "Path checkpoint reached. Moving to next one...");
-                    if (floodfill_points_.size() > 1)
-                        floodfill_points_.pop();
-
-                    RCLCPP_INFO(get_logger(), "Current checkpoint: %.2f, %.2f, %.2f",
-                                floodfill_points_.front().x, floodfill_points_.front().y, floodfill_points_.front().z);
-                }
-
-                // Generate requested position message
-                auto header = std_msgs::msg::Header();
-                header.frame_id = "control loop - position control";
-                header.stamp = get_clock()->now();
-
-                auto pose = geometry_msgs::msg::Pose();
-                pose.position = globalToLocal(floodfill_points_.front());
-                RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
-
-                auto message = geometry_msgs::msg::PoseStamped();
-                message.header = header;
-                message.pose = pose;
-
-                local_pos_pub_->publish(message);
+                handlePause();
             }
 
             std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
@@ -222,6 +211,24 @@ public:
         RCLCPP_INFO(get_logger(), "MISSION ENDED... Shuting down");
         rclcpp::shutdown();
         return;
+    }
+
+    // Publisher functions
+    void publishRequestPosition(std::string frame_id, geometry_msgs::msg::Point requested_position)
+    {
+        auto header = std_msgs::msg::Header();
+        header.frame_id = frame_id;
+        header.stamp = get_clock()->now();
+
+        auto pose = geometry_msgs::msg::Pose();
+        pose.position = requested_position;
+        RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
+
+        auto message = geometry_msgs::msg::PoseStamped();
+        message.header = header;
+        message.pose = pose;
+
+        local_pos_pub_->publish(message);
     }
 
     // Aquire functions
@@ -358,178 +365,204 @@ public:
     // Handle functions
     void handleModeChange(std::string mode)
     {
-        waitForService(set_mode_client_, "set_mode", WAIT_FOR_SERVICE_TIMEOUT);
-
-        mavros_msgs::srv::SetMode::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
-        request->custom_mode = mode;
-
-        set_mode_client_->async_send_request(request);
-
-        while (rclcpp::ok())
+        if (!is_paused)
         {
-            rclcpp::spin_some(get_node_base_interface());
-            if (current_state_.mode == mode)
-            {
-                RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode.c_str());
-                break;
-            }
+            waitForService(set_mode_client_, "set_mode", WAIT_FOR_SERVICE_TIMEOUT);
 
-            RCLCPP_INFO(get_logger(), "Waiting for mode to change");
-            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+            mavros_msgs::srv::SetMode::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
+            request->custom_mode = mode;
+
+            set_mode_client_->async_send_request(request);
+
+            while (rclcpp::ok())
+            {
+                rclcpp::spin_some(get_node_base_interface());
+                if (current_state_.mode == mode)
+                {
+                    RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode.c_str());
+                    break;
+                }
+
+                RCLCPP_INFO(get_logger(), "Waiting for mode to change");
+                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+            }
+        }
+        else
+        {
+            handlePause();
         }
     }
 
     void handleArming()
     {
-        waitForService(arming_client_, "arming", WAIT_FOR_SERVICE_TIMEOUT);
-
-        mavros_msgs::srv::CommandBool::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
-        request->value = true;
-        arming_client_->async_send_request(request);
-
-        while (rclcpp::ok())
+        if (!is_paused)
         {
-            rclcpp::spin_some(get_node_base_interface());
+            waitForService(arming_client_, "arming", WAIT_FOR_SERVICE_TIMEOUT);
 
-            if (current_state_.armed)
+            mavros_msgs::srv::CommandBool::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
+            request->value = true;
+            arming_client_->async_send_request(request);
+
+            while (rclcpp::ok())
             {
-                RCLCPP_INFO(get_logger(), "Drone armed");
-                break;
-            }
+                rclcpp::spin_some(get_node_base_interface());
 
-            RCLCPP_INFO(get_logger(), "Drone arming");
-            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+                if (current_state_.armed)
+                {
+                    RCLCPP_INFO(get_logger(), "Drone armed");
+                    break;
+                }
+
+                RCLCPP_INFO(get_logger(), "Drone arming");
+                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+            }
+        }
+        else
+        {
+            handlePause();
         }
     }
 
     void handleTakeOff(float altitude, float precision)
     {
-        if (is_paused)
+        if (!is_paused)
         {
-            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
-            return;
-        }
+            waitForService(takeoff_client_, "take-off", WAIT_FOR_SERVICE_TIMEOUT);
 
-        waitForService(takeoff_client_, "take-off", WAIT_FOR_SERVICE_TIMEOUT);
+            mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
+            request->altitude = altitude;
+            // FIXME: required yaw ??
 
-        mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
-        request->altitude = altitude;
-        // FIXME: required yaw ??
+            takeoff_client_->async_send_request(request);
 
-        takeoff_client_->async_send_request(request);
-
-        while (rclcpp::ok())
-        {
-            rclcpp::spin_some(get_node_base_interface());
-
-            auto z = current_position_.position.z;
-            RCLCPP_INFO(get_logger(), "Current z=%.2f requested=%.2f", z, request->altitude);
-
-            bool b_tookoff = (z >= (request->altitude - precision) && (z <= (request->altitude + precision)));
-
-            if (b_tookoff)
+            while (rclcpp::ok())
             {
-                RCLCPP_INFO(get_logger(), "Drone took off");
-                break;
-            }
+                rclcpp::spin_some(get_node_base_interface());
 
-            RCLCPP_INFO(get_logger(), "Drone taking off");
-            std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+                auto z = current_position_.position.z;
+                RCLCPP_INFO(get_logger(), "Current z=%.2f requested=%.2f", z, request->altitude);
+
+                bool b_tookoff = (z >= (request->altitude - precision) && (z <= (request->altitude + precision)));
+
+                if (b_tookoff)
+                {
+                    RCLCPP_INFO(get_logger(), "Drone took off");
+                    break;
+                }
+
+                RCLCPP_INFO(get_logger(), "Drone taking off");
+                std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+            }
+        }
+        else
+        {
+            handlePause();
         }
     }
 
     void handleLanding()
     {
-        waitForService(land_client_, "land", WAIT_FOR_SERVICE_TIMEOUT);
-
-        mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
-
-        land_client_->async_send_request(request);
-
-        while (rclcpp::ok())
+        if (!is_paused)
         {
-            rclcpp::spin_some(get_node_base_interface());
+            waitForService(land_client_, "land", WAIT_FOR_SERVICE_TIMEOUT);
 
-            if (!current_state_.armed)
+            mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
+
+            land_client_->async_send_request(request);
+
+            while (rclcpp::ok())
             {
-                RCLCPP_INFO(get_logger(), "Drone landed");
-                break;
-            }
+                rclcpp::spin_some(get_node_base_interface());
 
-            RCLCPP_INFO(get_logger(), "Drone landing");
-            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+                if (!current_state_.armed)
+                {
+                    RCLCPP_INFO(get_logger(), "Drone landed");
+                    break;
+                }
+
+                RCLCPP_INFO(get_logger(), "Drone landing");
+                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+            }
         }
     }
 
     void handleLandTakeOff(float altitude, float precision)
     {
-        if (is_paused)
+        if (!is_paused)
         {
-            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
-            return;
+            handleLanding();
+            handleModeChange("GUIDED");
+            handleArming();
+            handleTakeOff(altitude, precision);
         }
-
-        handleLanding();
-        handleModeChange("GUIDED");
-        handleArming();
-        handleTakeOff(altitude, precision);
+        else
+        {
+            handlePause();
+        }
     }
 
     void handleYaw(float yaw, float precision_degrees)
     {
         if (is_paused)
         {
-            RCLCPP_INFO(get_logger(), "handleTakeOff - DRONE IS PAUSED");
-            return;
+            handlePause();
         }
-
-        RCLCPP_INFO(get_logger(), "Requested yaw=%.3f deg", yaw);
-        yaw = yaw * (M_PI / 180.0);
-        RCLCPP_INFO(get_logger(), "Requested yaw=%.3f rad", yaw);
-
-        RCLCPP_INFO(get_logger(), "Requested precision=%.3f deg", precision_degrees);
-        float precision = precision_degrees * M_PI / 180.0;
-        RCLCPP_INFO(get_logger(), "Requested precision=%.3f rad", precision);
-
-        auto request = lrs_utils::yawToQuaternion(yaw);
-        auto pose = geometry_msgs::msg::Pose();
-        pose.orientation = request;
-        pose.position = globalToLocal(floodfill_points_.front());
-
-        auto header = std_msgs::msg::Header();
-        header.frame_id = "control_loop-yaw";
-        header.stamp = get_clock()->now();
-
-        auto message = geometry_msgs::msg::PoseStamped();
-        message.header = header;
-        message.pose = pose;
-
-        local_pos_pub_->publish(message);
-        RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%ff y=%f z=%f",
-                    request.w, request.x, request.y, request.z);
-
-        while (rclcpp::ok())
+        else
         {
-            rclcpp::spin_some(get_node_base_interface());
 
-            float current_yaw = std::abs(lrs_utils::quaternionToYaw(current_position_.orientation));
-            RCLCPP_INFO(get_logger(), "Current yaw=%.2f", current_yaw);
+            RCLCPP_INFO(get_logger(), "Requested yaw=%.3f deg", yaw);
+            yaw = yaw * (M_PI / 180.0);
+            RCLCPP_INFO(get_logger(), "Requested yaw=%.3f rad", yaw);
 
-            float yaw_difference = yaw - current_yaw;
-            RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
+            RCLCPP_INFO(get_logger(), "Requested precision=%.3f deg", precision_degrees);
+            float precision = precision_degrees * M_PI / 180.0;
+            RCLCPP_INFO(get_logger(), "Requested precision=%.3f rad", precision);
 
-            RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
-            if (yaw_difference <= precision)
+            auto request = lrs_utils::yawToQuaternion(yaw);
+            auto pose = geometry_msgs::msg::Pose();
+            pose.orientation = request;
+            pose.position = globalToLocal(floodfill_points_.front());
+
+            auto header = std_msgs::msg::Header();
+            header.frame_id = "control_loop-yaw";
+            header.stamp = get_clock()->now();
+
+            auto message = geometry_msgs::msg::PoseStamped();
+            message.header = header;
+            message.pose = pose;
+
+            local_pos_pub_->publish(message);
+            RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%ff y=%f z=%f",
+                        request.w, request.x, request.y, request.z);
+
+            while (rclcpp::ok())
             {
-                RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
-                break;
-            }
+                rclcpp::spin_some(get_node_base_interface());
 
-            RCLCPP_INFO(get_logger(), "Drone rotating. Current yaw=%.2f  Yaw difference=%.2f  Requested yaw=%.2f", current_yaw, yaw_difference, yaw);
-            std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+                float current_yaw = std::abs(lrs_utils::quaternionToYaw(current_position_.orientation));
+                RCLCPP_INFO(get_logger(), "Current yaw=%.2f", current_yaw);
+
+                float yaw_difference = yaw - current_yaw;
+                RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
+
+                RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
+                if (yaw_difference <= precision)
+                {
+                    RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
+                    break;
+                }
+
+                RCLCPP_INFO(get_logger(), "Drone rotating. Current yaw=%.2f  Yaw difference=%.2f  Requested yaw=%.2f", current_yaw, yaw_difference, yaw);
+                std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+            }
         }
     }
 
+    void handlePause()
+    {
+        publishRequestPosition("drone_pause_command", globalToLocal(current_position_.position));
+        RCLCPP_WARN(get_logger(), "Drone is paused");
+    }
     // Callback functions
     void stateCallback(const mavros_msgs::msg::State::SharedPtr msg)
     {
@@ -556,20 +589,7 @@ public:
             saved_state.saved_floodfill_points = floodfill_points_;
             saved_state.saved_pose = current_position_;
 
-            // Set requested position to current position
-            // auto header = std_msgs::msg::Header();
-            // header.frame_id = "pauseContinueDroneCallback";
-            // header.stamp = get_clock()->now();
-
-            // auto pose = geometry_msgs::msg::Pose();
-            // pose.position = globalToLocal(current_position_.position);
-            // RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
-
-            // auto message = geometry_msgs::msg::PoseStamped();
-            // message.header = header;
-            // message.pose = pose;
-
-            // local_pos_pub_->publish(message);
+            handlePause();
 
             response->success = true;
         }
@@ -581,8 +601,6 @@ public:
             current_command_ = saved_state.saved_command;
             floodfill_points_ = saved_state.saved_floodfill_points;
             is_paused = false;
-
-            rclcpp::spin_some(get_node_base_interface());
 
             response->success = true;
         }
