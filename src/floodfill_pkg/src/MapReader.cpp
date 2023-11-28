@@ -4,7 +4,10 @@
 
 MapReader::MapReader() 
 {
+    std::cout << "Entering map-reader" << std::endl;
     // Parse filenames -> append absolute path
+    std::string mapAbsolutePath = "/home/alesmelichar/projects/fei-stu/LRS/src/floodfill_pkg/src/maps/";
+    std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
 
     for (auto& filename : filenames)
     {
@@ -16,6 +19,31 @@ MapReader::MapReader()
     }
 
     map = inflateMap(map);
+
+    // save to csv
+    write3DMapToCSV(map, "map.csv");
+}
+
+void MapReader::write3DMapToCSV(const std::vector<std::vector<std::vector<int>>>& map, const std::string& filename) {
+    std::ofstream file(filename);
+
+    if (!file.is_open()) {
+        std::cerr << "Unable to open file: " << filename << std::endl;
+        return;
+    }
+
+    // Write each '1' point to the file with its coordinates
+    for (size_t i = 0; i < map.size(); ++i) {
+        for (size_t j = 0; j < map[i].size(); ++j) {
+            for (size_t k = 0; k < map[i][j].size(); ++k) {
+                if (map[i][j][k] == 1) {
+                    file << i << "," << j << "," << k << "\n";
+                }
+            }
+        }
+    }
+
+    file.close();
 }
 
 void MapReader::printMap() const 
