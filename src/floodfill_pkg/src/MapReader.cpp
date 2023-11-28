@@ -2,26 +2,27 @@
 
 #define ISTEST 0
 
-MapReader::MapReader() 
+MapReader::MapReader()
 {
     std::cout << "Entering map-reader" << std::endl;
     // Parse filenames -> append absolute path
     std::string mapAbsolutePath = "/home/alesmelichar/projects/fei-stu/LRS/src/floodfill_pkg/src/maps/";
     std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
 
-    for (auto& filename : filenames)
+    for (auto &filename : filenames)
     {
         filename = mapAbsolutePath + filename;
     }
 
-    for (const auto& filename : filenames) {
+    for (const auto &filename : filenames)
+    {
         loadFile(filename);
     }
-
-    map = inflateMap(map);
+    
+    this->inflated_map = inflateMap(map);
 
     // save to csv
-    write3DMapToCSV(map, "map.csv");
+    write3DMapToCSV(inflated_map, "map.csv");
 }
 
 void MapReader::write3DMapToCSV(const std::vector<std::vector<std::vector<int>>>& map, const std::string& filename) {
@@ -46,12 +47,15 @@ void MapReader::write3DMapToCSV(const std::vector<std::vector<std::vector<int>>>
     file.close();
 }
 
-void MapReader::printMap() const 
+void MapReader::printMap() const
 {
-    for (int k = 0; k <  map.size(); ++k) {
+    for (int k = 0; k < (int)map.size(); ++k)
+    {
         std::cout << "Layer " << k << ":\n";
-        for (int i = 0; i < height; ++i) {
-            for (int j = 0; j < width; ++j) {
+        for (int i = 0; i < height; ++i)
+        {
+            for (int j = 0; j < width; ++j)
+            {
                 std::cout << map[k][i][j] << " ";
             }
             std::cout << std::endl;
@@ -60,7 +64,7 @@ void MapReader::printMap() const
     }
 }
 
-void MapReader::printHeights() const 
+void MapReader::printHeights() const
 {
     for (int i = 0; i < 10; i++)
     {
@@ -68,20 +72,25 @@ void MapReader::printHeights() const
     }
 }
 
-const std::vector<std::vector<std::vector<int>>>& MapReader::getMap() const 
+const std::vector<std::vector<std::vector<int>>> &MapReader::getMap() const
 {
     return map;
 }
 
-const std::vector<int>& MapReader::getHeights() const 
+const std::vector<std::vector<std::vector<int>>> &MapReader::getInflatedMap() const
+{
+    return inflated_map;
+}
+
+const std::vector<int> &MapReader::getHeights() const
 {
     return heights;
 }
 
-void MapReader::loadFile(const std::string& filename) 
+void MapReader::loadFile(const std::string &filename)
 {
     std::ifstream file(filename);
-    if (!file) 
+    if (!file)
     {
         std::cerr << "Cannot open the file: " << filename << std::endl;
         return;
@@ -99,7 +108,7 @@ void MapReader::loadFile(const std::string& filename)
     std::string lineMagicNumber;
     std::getline(file, lineMagicNumber); // Read magic number
 
-    if (lineMagicNumber != "P2") 
+    if (lineMagicNumber != "P2")
     {
         std::cerr << "Unsupported PGM format!" << std::endl;
         return;
@@ -108,7 +117,8 @@ void MapReader::loadFile(const std::string& filename)
     std::string line;
 
     // Skip comments
-    while (std::getline(file, line) && line[0] == '#');
+    while (std::getline(file, line) && line[0] == '#')
+        ;
 
     // Read width, height
     std::stringstream ss(line);
@@ -118,24 +128,26 @@ void MapReader::loadFile(const std::string& filename)
     // Read max grayscale value
     std::getline(file, line);
     ss.clear();
-    ss.str(line);;
+    ss.str(line);
+    ;
     ss >> maxGrayValue;
     // std::cout << ss.str() << std::endl;
 
     std::vector<std::vector<int>> currentMap(height, std::vector<int>(width));
 
-    if (lineMagicNumber == "P2") 
+    if (lineMagicNumber == "P2")
     {
-        for (int i = 0; i < height; ++i) 
+        for (int i = 0; i < height; ++i)
         {
-            for (int j = 0; j < width; ++j) 
+            for (int j = 0; j < width; ++j)
             {
                 file >> currentMap[i][j];
-                
-                if (currentMap[i][j] == 255) 
+
+                if (currentMap[i][j] == 255)
                 {
                     currentMap[i][j] = 0;
-                } else if (currentMap[i][j] == 0) 
+                }
+                else if (currentMap[i][j] == 0)
                 {
                     currentMap[i][j] = 1;
                 }
@@ -147,29 +159,28 @@ void MapReader::loadFile(const std::string& filename)
     map.push_back(currentMap);
 }
 
-std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vector<std::vector<std::vector<int>>>& original_map)
+std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vector<std::vector<std::vector<int>>> &original_map)
 {
     std::vector<std::vector<std::vector<int>>> temp_map = original_map;
 
-   
-    for (size_t i = 0; i < original_map.size(); ++i) 
+    for (int i = 0; i < (int)original_map.size(); ++i)
     {
-        for (size_t j = 0; j < original_map[i].size(); ++j) 
+        for (int j = 0; j < (int)original_map[i].size(); ++j)
         {
-            for (size_t k = 0; k < original_map[i][j].size(); ++k) 
+            for (int k = 0; k < (int)original_map[i][j].size(); ++k)
             {
-                if (original_map[i][j][k] == 1) 
+                if (original_map[i][j][k] == 1)
                 {
-                    // Set the neighbors of temp_map[i][j][k] to 1
-                    for (int x = -4; x <= 4; ++x) {
-                        for (int y = -4; y <= 4; ++y) {
-                            for (int z = -4; z <= 4; ++z) {
-                                // Check for out of bounds
-                                if (i + x >= 0 && i + x < original_map.size() &&
-                                    j + y >= 0 && j + y < original_map[i].size() &&
-                                    k + z >= 0 && k + z < original_map[i][j].size()) {
-                                    temp_map[i + x][j + y][k + z] = 1;
-                                }
+                    // Set the neighbors of temp_map[i][j][k] to 1 along the Y and Z axes
+                    for (int y = -8; y <= 8; ++y)
+                    {
+                        for (int z = -8; z <= 8; ++z)
+                        {
+                            // Check for out of bounds
+                            if (j + y >= 0 && j + y < (int)original_map[i].size() &&
+                                k + z >= 0 && k + z < (int)original_map[i][j].size())
+                            {
+                                temp_map[i][j + y][k + z] = 1;
                             }
                         }
                     }
@@ -181,93 +192,80 @@ std::vector<std::vector<std::vector<int>>> MapReader::inflateMap(const std::vect
 }
 
 #if ISTEST
-    int main() 
-    {
+int main()
+{
 
-        MapReader reader;
-        // reader.printHeights();
-        // reader.getMap();
+    MapReader reader;
+    // reader.printHeights();
+    // reader.getMap();
 
     std::vector<std::vector<std::vector<int>>> original_map = {
-        {
-            {1, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        },
-        {
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0}
-        }
-    };
+        {{1, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}},
+        {{0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0},
+         {0, 0, 0, 0, 0, 0, 0}}};
 
+    auto map = reader.inflateMap(original_map);
 
-        auto map = reader.inflateMap(original_map);
-
-        // Print the inflated map
-        for (const auto& plane : map) {
-            for (const auto& row : plane) {
-                for (int val : row) {
-                    std::cout << val << " ";
-                }
-                std::cout << "\n";
+    // Print the inflated map
+    for (const auto &plane : map)
+    {
+        for (const auto &row : plane)
+        {
+            for (int val : row)
+            {
+                std::cout << val << " ";
             }
-            std::cout << "---\n";
+            std::cout << "\n";
         }
-
-        return 0;
+        std::cout << "---\n";
     }
+
+    return 0;
+}
 #endif

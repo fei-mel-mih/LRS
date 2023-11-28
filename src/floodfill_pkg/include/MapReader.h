@@ -5,30 +5,35 @@
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <sstream> 
+#include <sstream>
 #include <algorithm>
 
-class MapReader 
+class MapReader
 {
-    public:
-        MapReader();
-        
-        void printMap() const;
-        void printHeights() const;
+public:
+    MapReader();
 
-        const std::vector<std::vector<std::vector<int>>>& getMap() const;
-        const std::vector<int>& getHeights() const;
-        std::vector<std::vector<std::vector<int>>> inflateMap(const std::vector<std::vector<std::vector<int>>>& original_map);
+    void printMap() const;
+    void printHeights() const;
 
-    private:
-        int width, height, maxGrayValue;
-        std::vector<std::vector<std::vector<int>>> map;
-        std::vector<int> heights;
-        std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
-        std::string mapAbsolutePath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
+    const std::vector<std::vector<std::vector<int>>> &getMap() const;
+    const std::vector<std::vector<std::vector<int>>> &getInflatedMap() const;
 
-        // load file and create map
-        void loadFile(const std::string& filename);
+    const std::vector<int> &getHeights() const;
+    std::vector<std::vector<std::vector<int>>> inflateMap(const std::vector<std::vector<std::vector<int>>> &original_map);
+
+private:
+    int width, height, maxGrayValue;
+    std::vector<std::vector<std::vector<int>>> map;
+    std::vector<std::vector<std::vector<int>>> inflated_map;
+    
+    std::vector<int> heights;
+    std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
+    std::string mapAbsolutePath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
+
+    // load file and create map
+    void loadFile(const std::string &filename);
+    void write3DMapToCSV(const std::vector<std::vector<std::vector<int>>>& vec, const std::string& filename);
 };
 
 #endif // MAP_READER_H

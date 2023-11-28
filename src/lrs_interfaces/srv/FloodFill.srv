@@ -1,4 +1,5 @@
 Point start_point
 Point goal_point
 ---
-PointList points
+bool success
+Point[] points

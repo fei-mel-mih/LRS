@@ -20,10 +20,10 @@
 
 #define TO_CM 100
 
-#define DRONE_START_X 14.035203f
-#define DRONE_START_Y 1.514892f
-#define DRONE_START_Z 0.003074f
-#define DRONE_START_YAW 1.521858f
+#define DRONE_START_X 13.599900f
+#define DRONE_START_Y 1.494780f
+#define DRONE_START_Z 0.003021f
+#define DRONE_START_YAW M_PI_2
 #define MAP_MAX_WIDTH 18.2f
 #define MAP_MAX_HEIGHT 13.5f
 
@@ -395,6 +395,9 @@ private:
 
 	void handlePositionControll()
 	{
+		RCLCPP_INFO(get_logger(), "Current drone position x=%f y=%f z=%f",
+					current_position.position.x, current_position.position.y, current_position.position.z);
+
 		// Check if current goal is reached
 		bool b_checkpoint_reached;
 
@@ -402,6 +405,10 @@ private:
 		goal_pose.position.x = current_command.x;
 		goal_pose.position.y = current_command.y;
 		goal_pose.position.z = current_command.z;
+
+		RCLCPP_INFO(get_logger(), "Comparing command positions: command[%f,%f,%f] == drone[%f,%f,%f]",
+					goal_pose.position.x, goal_pose.position.y, goal_pose.position.z,
+					current_position.position.x, current_position.position.y, current_position.position.z);
 
 		switch (current_command.precision)
 		{
@@ -502,14 +509,14 @@ private:
 
 					RCLCPP_INFO(get_logger(), "Drone rotating");
 
-					std::this_thread::sleep_for(250ms);					
+					std::this_thread::sleep_for(250ms);
 				}
 			}
 			// LAND AND TAKEOFF
 			else if (current_command.task == TASK_ENUM::LANDTAKEOFF)
 			{
 				// LAND
-				while (!this->takeoff_client_->wait_for_service(1s))
+				while (!this->land_client_->wait_for_service(1s))
 				{
 					rclcpp::spin_some(get_node_base_interface());
 					if (!rclcpp::ok())
@@ -519,7 +526,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request land_request;
-				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+				land_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
 
 				while (rclcpp::ok())
 				{
@@ -531,6 +538,27 @@ private:
 					}
 					RCLCPP_INFO(get_logger(), "Drone landing");
 					std::this_thread::sleep_for(250ms);
+				}
+
+				// Set mode
+				mavros_msgs::srv::SetMode::Request guided_set_mode_req;
+				guided_set_mode_req.custom_mode = "GUIDED";
+				while (!set_mode_client_->wait_for_service(1s))
+				{
+					rclcpp::spin_some(this->get_node_base_interface());
+					if (!rclcpp::ok())
+					{
+						RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the set_mode service. Exiting.");
+						return;
+					}
+				}
+				auto result = set_mode_client_->async_send_request(std::make_shared<mavros_msgs::srv::SetMode::Request>(guided_set_mode_req));
+
+				// Test if drone state really changed to GUIDED
+				while (rclcpp::ok() && !(current_state_.mode == "GUIDED"))
+				{
+					rclcpp::spin_some(this->get_node_base_interface());
+					std::this_thread::sleep_for(100ms);
 				}
 
 				// ARM
@@ -570,7 +598,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request takeoff_request;
-				takeoff_request.altitude = TAKEOFF_ALTITUDE;
+				takeoff_request.altitude = current_command.z;
 				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(takeoff_request));
 
 				// Eval precision
@@ -608,7 +636,7 @@ private:
 			else if (current_command.task == TASK_ENUM::LAND)
 			{
 				// LAND
-				while (!this->takeoff_client_->wait_for_service(1s))
+				while (!this->land_client_->wait_for_service(1s))
 				{
 					rclcpp::spin_some(get_node_base_interface());
 					if (!rclcpp::ok())
@@ -618,7 +646,7 @@ private:
 					}
 				}
 				mavros_msgs::srv::CommandTOL::Request land_request;
-				takeoff_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
+				land_client_->async_send_request(std::make_shared<mavros_msgs::srv::CommandTOL::Request>(land_request));
 
 				while (rclcpp::ok())
 				{
@@ -680,9 +708,13 @@ private:
 		else
 		{
 			geometry_msgs::msg::Pose ff_goal_pose;
-			ff_goal_pose.position.x = this->floodfill_points.front().z / 100;
-			ff_goal_pose.position.y = this->floodfill_points.front().y / 100;
-			ff_goal_pose.position.z = this->floodfill_points.front().x / 100;
+			ff_goal_pose.position.x = this->floodfill_points.front().x / 100.0;
+			ff_goal_pose.position.y = this->floodfill_points.front().y / 100.0;
+			ff_goal_pose.position.z = this->floodfill_points.front().z / 100.0;
+
+			RCLCPP_INFO(get_logger(), "Comparing positions: goal[%f,%f,%f] == drone[%f,%f,%f]",
+						ff_goal_pose.position.x, ff_goal_pose.position.y, ff_goal_pose.position.z,
+						current_position.position.x, current_position.position.y, current_position.position.z);
 
 			bool b_ff_reached = isLocationInsideRegion(current_position, ff_goal_pose, HARD_PRECISION);
 
@@ -693,35 +725,63 @@ private:
 			}
 		}
 
-		// Calculate requested position (global coordination system)
-		final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
-		final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
-		final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
+		if (!this->floodfill_points.empty())
+		{
+			// Calculate requested position (global coordination system)
+			// final_pose.position.x = (this->floodfill_points.front().z / 100.0) - DRONE_START_X;
+			// final_pose.position.y = (this->floodfill_points.front().y / 100.0) - DRONE_START_Y;
+			// final_pose.position.z = (this->floodfill_points.front().x / 100.0) - DRONE_START_Z;
 
-		auto message = geometry_msgs::msg::PoseStamped();
-		auto header = std_msgs::msg::Header();
-		header.frame_id = "position_control";
-		header.stamp = this->get_clock()->now();
+			// Calculate the relative position of the goal in the global coordinate system
+			float relative_global_x = (floodfill_points.front().x / 100.0) - DRONE_START_X;
+			float relative_global_y = (floodfill_points.front().y / 100.0) - DRONE_START_Y;
+			float relative_global_z = (floodfill_points.front().z / 100.0) - DRONE_START_Z;
 
-		message.header = header;
-		message.pose = final_pose;
+			// Rotate the relative position to the local coordinate system
+			// float relative_local_x = cos(DRONE_START_YAW) * relative_global_x + sin(DRONE_START_YAW) * relative_global_y;
+			// float relative_local_y = -sin(DRONE_START_YAW) * relative_global_x + cos(DRONE_START_YAW) * relative_global_y;
+			float relative_local_x = relative_global_y;
+			float relative_local_y = relative_global_x;
+			float relative_local_z = relative_global_z;
 
-		local_pos_pub_->publish(message);
-		RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", final_pose.position.x, final_pose.position.y, final_pose.position.z);
+			// Calculate the distances to move in the local coordinate system
+			final_pose.position.x = relative_local_x;
+			final_pose.position.y = relative_local_y;
+			final_pose.position.z = relative_local_z;
+
+			RCLCPP_INFO(get_logger(), "Flood fill points: x=%f y=%f z=%f",
+						(this->floodfill_points.front().x / 100.0), (this->floodfill_points.front().y / 100.0), (this->floodfill_points.front().z / 100.0));
+
+			auto message = geometry_msgs::msg::PoseStamped();
+			auto header = std_msgs::msg::Header();
+			header.frame_id = "position_control";
+			header.stamp = this->get_clock()->now();
+
+			message.header = header;
+			message.pose = final_pose;
+
+			local_pos_pub_->publish(message);
+			RCLCPP_INFO(this->get_logger(), "Requested position published: x=%.3f y=%.3f z=%.3f", final_pose.position.x, final_pose.position.y, final_pose.position.z);
+		}
 	}
 
 	void handleLocalPosition(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 	{
 		geometry_msgs::msg::PoseStamped current_local_pos_ = *msg;
-		
-		this->current_position.position.x = DRONE_START_X + current_local_pos_.pose.position.y;
+
+		this->current_position.position.x = DRONE_START_X - current_local_pos_.pose.position.y;
 		this->current_position.position.y = DRONE_START_Y + current_local_pos_.pose.position.x;
 		this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
+
+		// this->current_position.position.x = DRONE_START_X + cos(DRONE_START_YAW) * current_local_pos_.pose.position.x - sin(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		// this->current_position.position.y = DRONE_START_Y + sin(DRONE_START_YAW) * current_local_pos_.pose.position.x + cos(DRONE_START_YAW) * current_local_pos_.pose.position.y;
+		// this->current_position.position.z = DRONE_START_Z + current_local_pos_.pose.position.z;
 
 		this->current_position.orientation = current_local_pos_.pose.orientation;
 
 		if (!this->b_initial_position_aquired)
 			this->b_initial_position_aquired = true;
+
 		// RCLCPP_INFO(this->get_logger(), "Current Local Position: %f, %f, %f", current_local_pos_.pose.position.x, current_local_pos_.pose.position.y, current_local_pos_.pose.position.z);
 	}
 
@@ -754,13 +814,17 @@ private:
 						this->floodfill_points.pop();
 
 					// Set new checkpoints
-					std::string _log_message = "--- Flood fill points ---\nX\t\tY\t\tZ\n";
-					for (const auto &point : response->points.points)
+					std::string _log_message = "\n--- Flood fill points ---\nX\t\tY\t\tZ\n";
+					for (const auto &point : response->points)
 					{
-						this->floodfill_points.push(point);
-						_log_message += std::to_string(floodfill_points.front().z) + "\t\t";
-						_log_message += std::to_string(floodfill_points.front().y) + "\t\t";
-						_log_message += std::to_string(floodfill_points.front().x) + "\t\t";
+						lrs_interfaces::msg::Point converted_point = point;
+						converted_point.x = point.z;
+						converted_point.z = point.x;
+
+						this->floodfill_points.push(converted_point);
+						_log_message += std::to_string(converted_point.z) + "\t\t";
+						_log_message += std::to_string(converted_point.y) + "\t\t";
+						_log_message += std::to_string(converted_point.x) + "\t\t";
 						_log_message += "\n";
 					}
 					RCLCPP_INFO(this->get_logger(), _log_message.c_str());
@@ -791,6 +855,8 @@ private:
 		pose.orientation.y = qy;
 		pose.orientation.z = qz;
 		pose.orientation.w = qw;
+
+		return pose;
 	}
 
 	float quaternionToYaw(const geometry_msgs::msg::Pose &pose)
@@ -832,8 +898,8 @@ private:
 	bool b_initial_position_aquired = false;
 
 	// Precisions
-	const float SOFT_PRECISION = 0.05f;	 // 5 cm
-	const float HARD_PRECISION = 0.2f;	 // 20 cm
+	const float SOFT_PRECISION = 0.2f;	 // 20 cm
+	const float HARD_PRECISION = 0.05f;	 // 05 cm
 	const float TAKEOFF_ALTITUDE = 0.3f; // 25 cm
 };
 
