@@ -222,6 +222,7 @@ public:
 
         auto pose = geometry_msgs::msg::Pose();
         pose.position = requested_position;
+        // pose.orientation = current_position_.orientation; // Set actual rotation
         RCLCPP_INFO(get_logger(), "Requested position: %.2f, %.2f, %.2f", pose.position.x, pose.position.y, pose.position.z);
 
         auto message = geometry_msgs::msg::PoseStamped();
@@ -365,61 +366,47 @@ public:
     // Handle functions
     void handleModeChange(std::string mode)
     {
-        if (!is_paused)
+        waitForService(set_mode_client_, "set_mode", WAIT_FOR_SERVICE_TIMEOUT);
+
+        mavros_msgs::srv::SetMode::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
+        request->custom_mode = mode;
+
+        set_mode_client_->async_send_request(request);
+
+        while (rclcpp::ok())
         {
-            waitForService(set_mode_client_, "set_mode", WAIT_FOR_SERVICE_TIMEOUT);
-
-            mavros_msgs::srv::SetMode::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::SetMode::Request>();
-            request->custom_mode = mode;
-
-            set_mode_client_->async_send_request(request);
-
-            while (rclcpp::ok())
+            rclcpp::spin_some(get_node_base_interface());
+            if (current_state_.mode == mode)
             {
-                rclcpp::spin_some(get_node_base_interface());
-                if (current_state_.mode == mode)
-                {
-                    RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode.c_str());
-                    break;
-                }
-
-                RCLCPP_INFO(get_logger(), "Waiting for mode to change");
-                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+                RCLCPP_INFO(get_logger(), "Mode changed to %s", current_state_.mode.c_str());
+                break;
             }
-        }
-        else
-        {
-            handlePause();
+
+            RCLCPP_INFO(get_logger(), "Waiting for mode to change");
+            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
         }
     }
 
     void handleArming()
     {
-        if (!is_paused)
+        waitForService(arming_client_, "arming", WAIT_FOR_SERVICE_TIMEOUT);
+
+        mavros_msgs::srv::CommandBool::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
+        request->value = true;
+        arming_client_->async_send_request(request);
+
+        while (rclcpp::ok())
         {
-            waitForService(arming_client_, "arming", WAIT_FOR_SERVICE_TIMEOUT);
+            rclcpp::spin_some(get_node_base_interface());
 
-            mavros_msgs::srv::CommandBool::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
-            request->value = true;
-            arming_client_->async_send_request(request);
-
-            while (rclcpp::ok())
+            if (current_state_.armed)
             {
-                rclcpp::spin_some(get_node_base_interface());
-
-                if (current_state_.armed)
-                {
-                    RCLCPP_INFO(get_logger(), "Drone armed");
-                    break;
-                }
-
-                RCLCPP_INFO(get_logger(), "Drone arming");
-                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+                RCLCPP_INFO(get_logger(), "Drone armed");
+                break;
             }
-        }
-        else
-        {
-            handlePause();
+
+            RCLCPP_INFO(get_logger(), "Drone arming");
+            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
         }
     }
 
@@ -431,11 +418,10 @@ public:
 
             mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
             request->altitude = altitude;
-            // FIXME: required yaw ??
 
             takeoff_client_->async_send_request(request);
 
-            while (rclcpp::ok())
+            while (rclcpp::ok() && !is_paused)
             {
                 rclcpp::spin_some(get_node_base_interface());
 
@@ -462,27 +448,24 @@ public:
 
     void handleLanding()
     {
-        if (!is_paused)
+        waitForService(land_client_, "land", WAIT_FOR_SERVICE_TIMEOUT);
+
+        mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
+
+        land_client_->async_send_request(request);
+
+        while (rclcpp::ok())
         {
-            waitForService(land_client_, "land", WAIT_FOR_SERVICE_TIMEOUT);
+            rclcpp::spin_some(get_node_base_interface());
 
-            mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
-
-            land_client_->async_send_request(request);
-
-            while (rclcpp::ok())
+            if (!current_state_.armed)
             {
-                rclcpp::spin_some(get_node_base_interface());
-
-                if (!current_state_.armed)
-                {
-                    RCLCPP_INFO(get_logger(), "Drone landed");
-                    break;
-                }
-
-                RCLCPP_INFO(get_logger(), "Drone landing");
-                std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
+                RCLCPP_INFO(get_logger(), "Drone landed");
+                break;
             }
+
+            RCLCPP_INFO(get_logger(), "Drone landing");
+            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
         }
     }
 
@@ -535,7 +518,7 @@ public:
             RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%ff y=%f z=%f",
                         request.w, request.x, request.y, request.z);
 
-            while (rclcpp::ok())
+            while (rclcpp::ok() && !is_paused)
             {
                 rclcpp::spin_some(get_node_base_interface());
 
@@ -601,6 +584,14 @@ public:
             current_command_ = saved_state.saved_command;
             floodfill_points_ = saved_state.saved_floodfill_points;
             is_paused = false;
+
+            // If invalid mode is set
+            // if (current_state_.mode != "GUIDED")
+                // handleModeChange("GUIDED");
+
+            // If drone is not armed
+            // if (!current_state_.armed)
+                // handleArming();
 
             response->success = true;
         }

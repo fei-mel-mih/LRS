@@ -6,7 +6,7 @@ MapReader::MapReader()
 {
     std::cout << "Entering map-reader" << std::endl;
     // Parse filenames -> append absolute path
-    std::string mapAbsolutePath = "/home/alesmelichar/projects/fei-stu/LRS/src/floodfill_pkg/src/maps/";
+    std::string mapAbsolutePath = "/home/lrs-ubuntu/Documents/lrs-git/LRS/src/floodfill_pkg/src/maps/";
     std::vector<std::string> filenames = {"map_025.pgm", "map_075.pgm", "map_080.pgm", "map_100.pgm", "map_125.pgm", "map_150.pgm", "map_175.pgm", "map_180.pgm", "map_200.pgm", "map_225.pgm"};
 
     for (auto &filename : filenames)
