@@ -9,21 +9,21 @@
 #include <random>
 #include <fstream>
 
-struct Node
+struct RRTNode
 {
     Point point;
-    std::shared_ptr<Node> parent;
-    std::vector<std::shared_ptr<Node>> children; // Add this to keep track of children
+    std::shared_ptr<RRTNode> parent;
+    std::vector<std::shared_ptr<RRTNode>> children; // Add this to keep track of children
 
-    Node(Point p) : point(p), parent(nullptr) {}
-    Node(Point p, std::shared_ptr<Node> parent_node) : point(p), parent(parent_node) {}
+    RRTNode(Point p) : point(p), parent(nullptr) {}
+    RRTNode(Point p, std::shared_ptr<RRTNode> parent_node) : point(p), parent(parent_node) {}
 
 };
 
 class RRTTree
 {
     private:
-        std::vector<std::shared_ptr<Node>> nodes;
+        std::vector<std::shared_ptr<RRTNode>> nodes;
         std::vector<std::vector<std::vector<int>>> map;
     public:
         RRTTree(std::vector<std::vector<std::vector<int>>> map) 
@@ -31,14 +31,14 @@ class RRTTree
             this->map = map;
         }
 
-        std::shared_ptr<Node> addNode(Point point, std::shared_ptr<Node> parent = nullptr)
+        std::shared_ptr<RRTNode> addNode(Point point, std::shared_ptr<RRTNode> parent = nullptr)
         {
-            auto new_node = std::make_shared<Node>(point, parent);
+            auto new_node = std::make_shared<RRTNode>(point, parent);
             nodes.push_back(new_node);
             return new_node;
         }
 
-        void addLink(std::shared_ptr<Node> parent, std::shared_ptr<Node> child)
+        void addLink(std::shared_ptr<RRTNode> parent, std::shared_ptr<RRTNode> child)
         {
             child->parent = parent; // Assuming child's parent is set to nullptr initially.
             if (parent)
@@ -47,19 +47,19 @@ class RRTTree
             }
         }
 
-        std::vector<std::shared_ptr<Node>>& getNodes() 
+        std::vector<std::shared_ptr<RRTNode>>& getNodes() 
         {
             return nodes;
         }
 
-        std::shared_ptr<Node> findNearest(Point point)
+        std::shared_ptr<RRTNode> findNearest(Point point)
         {
             if (nodes.empty())
             {
                 return nullptr; // No nodes in the tree, return null
             }
 
-            std::shared_ptr<Node> nearest_node = nodes[0]; // Start with the first node as the nearest
+            std::shared_ptr<RRTNode> nearest_node = nodes[0]; // Start with the first node as the nearest
             float min_distance = chebyshevDistance(point, nodes[0]->point); // Calculate the distance to the first node
 
 
@@ -182,10 +182,10 @@ void printMap(std::vector<std::vector<std::vector<int>>> map)
         }
     }
 
-std::vector<Point> pathFromStartToGoal(std::shared_ptr<Node> goal_node, Point goal)
+std::vector<Point> pathFromStartToGoal(std::shared_ptr<RRTNode> goal_node, Point goal)
 {
     std::vector<Point> path;
-    std::shared_ptr<Node> current_node = goal_node;
+    std::shared_ptr<RRTNode> current_node = goal_node;
 
     // Follow the parent pointers back to the start
     while (current_node != nullptr)
@@ -227,7 +227,7 @@ std::vector<Point> rrtAlgorithm(Point start, Point goal, int max_iterations)
 
     RRTTree rrt_tree = RRTTree(map);
     rrt_tree.addNode(start);
-    std::shared_ptr<Node> new_node;
+    std::shared_ptr<RRTNode> new_node;
     std::cout<<"Adding start node to the tree" << std::endl;
 
     float step_size = 25;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(lrs_interfaces)
+project(rrt_pkg)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -17,17 +17,18 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(lrs_interfaces REQUIRED)
+find_package(std_msgs REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Point.msg"
-  "msg/Command.msg"
-  "srv/FloodFill.srv"
-  "srv/MissionCommand.srv"
-  "srv/DronePauseContinue.srv"
-  "srv/Rrt.srv"
+include_directories(include)
+
+add_executable(rrt_node src/RRTTreeNode.cpp src/MapReader.cpp)
+ament_target_dependencies(rrt_node rclcpp lrs_interfaces)
+
+install(TARGETS
+  rrt_node
+  DESTINATION lib/${PROJECT_NAME}
 )
-
-ament_export_dependencies(rosidl_default_runtime)
 
 ament_package()

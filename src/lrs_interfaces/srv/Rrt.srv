@@ -1,0 +1,6 @@
+Point start_point
+Point goal_point
+int32 max_iterations
+---
+bool success
+Point[] points
