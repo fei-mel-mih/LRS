@@ -258,6 +258,7 @@ private:
         if (foundIndex == -1)
         {
             RCLCPP_ERROR(this->get_logger(), "Height value of %f is not possible!", value);
+            RCLCPP_WARN(get_logger(), "Using height %d insted", heights[heights.size() - 1]);
             foundIndex = heights.size() - 1;
         }
         return foundIndex;

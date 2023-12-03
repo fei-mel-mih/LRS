@@ -17,7 +17,7 @@
 #include "lrs_interfaces/msg/point_list.hpp"
 
 #include "lrs_interfaces/srv/mission_command.hpp"
-#include "lrs_interfaces/srv/flood_fill.hpp"
+#include "lrs_interfaces/srv/rrt.hpp"
 #include "lrs_interfaces/srv/drone_pause_continue.hpp"
 
 #define WHILE_CHECK_TIMEOUT 250ms
@@ -104,7 +104,7 @@ public:
         set_mode_client_ = this->create_client<mavros_msgs::srv::SetMode>("mavros/set_mode");
         takeoff_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/takeoff");
 
-        floodfill_cleint_ = this->create_client<lrs_interfaces::srv::FloodFill>("floodfill_service");
+        floodfill_cleint_ = this->create_client<lrs_interfaces::srv::Rrt>("rrt_service");
         mission_client_ = this->create_client<lrs_interfaces::srv::MissionCommand>("mission_loader_service");
         land_client_ = this->create_client<mavros_msgs::srv::CommandTOL>("mavros/cmd/land");
 
@@ -179,7 +179,7 @@ public:
                 {
                     if (floodfill_points_.empty())
                     {
-                        RCLCPP_ERROR(get_logger(), "Missing floodfill points! Landing...");
+                        RCLCPP_ERROR(get_logger(), "Missing RRT points! Landing...");
                         handleLanding();
                         rclcpp::shutdown();
                         return;
@@ -294,7 +294,7 @@ public:
 
     void acquirePath()
     {
-        waitForService(floodfill_cleint_, "flood_fill", WAIT_FOR_SERVICE_TIMEOUT);
+        waitForService(floodfill_cleint_, "rrt", WAIT_FOR_SERVICE_TIMEOUT);
 
         lrs_interfaces::msg::Point start;
         start.x = (int)(current_position_.position.x * TO_CM);
@@ -306,7 +306,7 @@ public:
         goal.y = (int)(current_command_.y * TO_CM);
         goal.z = (int)(current_command_.z * TO_CM);
 
-        lrs_interfaces::srv::FloodFill::Request::SharedPtr request = std::make_shared<lrs_interfaces::srv::FloodFill::Request>();
+        lrs_interfaces::srv::Rrt::Request::SharedPtr request = std::make_shared<lrs_interfaces::srv::Rrt::Request>();
         request->start_point = start;
         request->goal_point = goal;
 
@@ -332,7 +332,7 @@ public:
                         floodfill_points_.pop();
 
                     // Set new checkpoints
-                    std::string _log_message = "\n--- Flood fill points ---\nX\t\tY\t\tZ\n";
+                    std::string _log_message = "\n--- RRT points ---\nX\t\tY\t\tZ\n";
                     for (const auto &point : response->points)
                     {
                         geometry_msgs::msg::Point conv_point;
@@ -351,16 +351,16 @@ public:
                 }
                 else
                 {
-                    RCLCPP_ERROR(get_logger(), "Cannot get new floodfill path. Drone is going to land...");
+                    RCLCPP_ERROR(get_logger(), "Cannot get new RRT path. Drone is going to land...");
                     handleLanding();
                     rclcpp::shutdown();
                     return;
                 }
             }
-            RCLCPP_INFO(get_logger(), "Waiting for new floodfill points");
+            RCLCPP_INFO(get_logger(), "Waiting for new RRT points");
             std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
         }
-        RCLCPP_INFO(get_logger(), "Floodfill point aquired");
+        RCLCPP_INFO(get_logger(), "RRT points aquired");
     }
 
     // Handle functions
@@ -715,7 +715,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr local_pos_sub_;
 
     // Custom clients
-    rclcpp::Client<lrs_interfaces::srv::FloodFill>::SharedPtr floodfill_cleint_;
+    rclcpp::Client<lrs_interfaces::srv::Rrt>::SharedPtr floodfill_cleint_;
     rclcpp::Client<lrs_interfaces::srv::MissionCommand>::SharedPtr mission_client_;
 
     // Custom services
