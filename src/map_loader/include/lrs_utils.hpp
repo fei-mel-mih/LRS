@@ -61,6 +61,7 @@ namespace lrs_utils
         LAND,
         LANDTAKEOFF,
         YAW,
+        CIRCLE,
         NONE
     };
 

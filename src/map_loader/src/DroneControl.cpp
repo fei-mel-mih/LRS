@@ -159,6 +159,9 @@ public:
                     case lrs_utils::TASK_ENUM::LAND:
                         handleLanding();
                         break;
+                    case lrs_utils::TASK_ENUM::CIRCLE:
+                        handleCircle(2.f);
+                        break;
                     case lrs_utils::TASK_ENUM::NONE:
                         RCLCPP_INFO(get_logger(), "Performing none operation...");
                         break;
@@ -541,6 +544,74 @@ public:
         }
     }
 
+    void handleCircle(float radius)
+    {
+        RCLCPP_INFO(get_logger(), "Performing circle task...");
+
+        uint8_t number_of_points = 8;
+        float precission = 0.15;
+
+        // Store global drone position into local position
+        auto local_drone_position = globalToLocal(current_position_.position);
+
+        // Generate points for circle
+        RCLCPP_INFO(get_logger(), "Generating circle points");
+        std::queue<geometry_msgs::msg::Point> circle_points;
+        for (uint8_t i = 0; i < number_of_points; i++)
+        {
+            float angle = (2 * M_PI * i) / number_of_points;
+
+            geometry_msgs::msg::Point circle_point;
+            circle_point.x = local_drone_position.x + radius * cos(angle);
+            circle_point.y = local_drone_position.y + radius * sin(angle);
+            circle_point.z = local_drone_position.z;
+
+            circle_points.push(circle_point);
+        }
+
+        // Handle position controll for circle points
+        RCLCPP_INFO(get_logger(), "Handling circle positions...");
+        while (rclcpp::ok() && !is_paused && !circle_points.empty())
+        {
+            rclcpp::spin_some(get_node_base_interface());
+
+            publishRequestPosition("circle_task", circle_points.front());
+
+            // Check position
+            if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), circle_points.front(), precission))
+            {
+                if (!circle_points.empty())
+                {
+                    circle_points.pop();
+                    RCLCPP_INFO(get_logger(), "Circle point reached moving to next one");
+                }
+                else
+                    break;
+            }
+
+            std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+        }
+        RCLCPP_INFO(get_logger(), "Circle finished");
+        RCLCPP_INFO(get_logger(), "Going to start position");
+
+        // Return to begining
+        while (rclcpp::ok() && !is_paused)
+        {
+            rclcpp::spin_some(get_node_base_interface());
+
+            publishRequestPosition("circle-back_to_start", local_drone_position);
+
+            if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), local_drone_position, precission))
+                break;
+
+            RCLCPP_INFO(get_logger(), "Going to starting circle position");
+
+            std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+        }
+
+        RCLCPP_INFO(get_logger(), "Circle finished. Moving to next checkpoint");
+    }
+
     void handlePause()
     {
         publishRequestPosition("drone_pause_command", globalToLocal(current_position_.position));
@@ -587,11 +658,11 @@ public:
 
             // If invalid mode is set
             // if (current_state_.mode != "GUIDED")
-                // handleModeChange("GUIDED");
+            // handleModeChange("GUIDED");
 
             // If drone is not armed
             // if (!current_state_.armed)
-                // handleArming();
+            // handleArming();
 
             response->success = true;
         }
@@ -657,6 +728,10 @@ public:
                 converted_command.yaw_value = -666;
                 RCLCPP_ERROR(this->get_logger(), "Cannot parse task as it doesn't match regular expresion");
             }
+        }
+        else if (task == "circle")
+        {
+            converted_command.task = lrs_utils::TASK_ENUM::CIRCLE;
         }
         else
         {
