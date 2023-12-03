@@ -24,7 +24,7 @@ find_package(lrs_interfaces REQUIRED)
 
 include_directories(include)
 
-add_executable(drone_controll_node src/DroneControlRefactor.cpp)
+add_executable(drone_controll_node src/DroneControl.cpp)
 ament_target_dependencies(drone_controll_node rclcpp geometry_msgs mavros_msgs lrs_interfaces)
 
 add_executable(mission_loader_node src/MissionLoader.cpp)
