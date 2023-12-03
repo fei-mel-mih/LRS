@@ -43,7 +43,7 @@ public:
 
         RCLCPP_INFO(get_logger(), "Loading map from MapReader...");
         map_reader_ = std::make_shared<MapReader>();
-        this->map = map_reader_->getInflatedMap();
+        this->map = map_reader_->getMap();
         RCLCPP_INFO(get_logger(), "Inflated map loaded...");
     }
 
@@ -214,7 +214,8 @@ public:
                     std::cout << "Distance for points: " << new_node->point.toString() << " and " << goal.toString() << " the distance is: " << dist << std::endl;
                     if (dist < step_size)
                     {
-                        std::cout << "\032[1;31mTerminal distance reached\032[0m\n";
+                        // std::cout << "\032[1;31mTerminal distance reached\032[0m\n";
+                        RCLCPP_INFO(get_logger(), "Terminal distance reached");
                         return pathFromStartToGoal(new_node, goal);
                     }
                 }
