@@ -204,9 +204,7 @@ public:
                 }
             }
             else
-            {
-                handlePause();
-            }
+                handlePause("controlLoop_while");
 
             std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
         }
@@ -415,37 +413,31 @@ public:
 
     void handleTakeOff(float altitude, float precision)
     {
-        if (!is_paused)
+        waitForService(takeoff_client_, "take-off", WAIT_FOR_SERVICE_TIMEOUT);
+
+        mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
+        request->altitude = altitude;
+
+        takeoff_client_->async_send_request(request);
+
+        while (rclcpp::ok())
         {
-            waitForService(takeoff_client_, "take-off", WAIT_FOR_SERVICE_TIMEOUT);
+            rclcpp::spin_some(get_node_base_interface());
 
-            mavros_msgs::srv::CommandTOL::Request::SharedPtr request = std::make_shared<mavros_msgs::srv::CommandTOL::Request>();
-            request->altitude = altitude;
+            auto z = current_position_.position.z;
+            RCLCPP_INFO(get_logger(), "Current z=%.2f requested=%.2f", z, request->altitude);
 
-            takeoff_client_->async_send_request(request);
+            bool b_tookoff = (z >= (request->altitude - precision) && (z <= (request->altitude + precision)));
 
-            while (rclcpp::ok() && !is_paused)
+            if (b_tookoff)
             {
-                rclcpp::spin_some(get_node_base_interface());
-
-                auto z = current_position_.position.z;
-                RCLCPP_INFO(get_logger(), "Current z=%.2f requested=%.2f", z, request->altitude);
-
-                bool b_tookoff = (z >= (request->altitude - precision) && (z <= (request->altitude + precision)));
-
-                if (b_tookoff)
-                {
-                    RCLCPP_INFO(get_logger(), "Drone took off");
-                    break;
-                }
-
-                RCLCPP_INFO(get_logger(), "Drone taking off");
-                std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
+                RCLCPP_INFO(get_logger(), "Drone took off");
+                break;
             }
-        }
-        else
-        {
-            handlePause();
+
+            RCLCPP_INFO(get_logger(), "Drone taking off");
+
+            std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
         }
     }
 
@@ -474,24 +466,48 @@ public:
 
     void handleLandTakeOff(float altitude, float precision)
     {
-        if (!is_paused)
+        bool is_land = false;
+        bool is_mode_changed = false;
+
+        while (rclcpp::ok())
         {
-            handleLanding();
-            handleModeChange("GUIDED");
-            handleArming();
-            handleTakeOff(altitude, precision);
+            rclcpp::spin_some(get_node_base_interface());
+
+            if (!is_paused && !is_land)
+            {
+                handleLanding();
+                is_land = true;
+            }
+
+            if (!is_paused && is_land && !is_mode_changed)
+            {
+                handleModeChange("GUIDED");
+                is_mode_changed = true;
+            }
+
+            if (!is_paused && is_land && is_mode_changed)
+            {
+                handleArming();
+            }
+
+            if (!is_paused && is_land && is_mode_changed && current_state_.armed)
+            {
+                handleTakeOff(altitude, precision);
+                break;
+            }
+
+            handlePause("handleLandTakeOff_while");
+            std::this_thread::sleep_for(WHILE_CHECK_TIMEOUT);
         }
-        else
-        {
-            handlePause();
-        }
+
+        RCLCPP_INFO(get_logger(), "LandTakeOff done");
     }
 
     void handleYaw(float yaw, float precision_degrees)
     {
         if (is_paused)
         {
-            handlePause();
+            handlePause("handleYaw");
         }
         else
         {
@@ -521,24 +537,31 @@ public:
             RCLCPP_INFO(get_logger(), "Requested orientation\nw=%f x=%ff y=%f z=%f",
                         request.w, request.x, request.y, request.z);
 
-            while (rclcpp::ok() && !is_paused)
+            while (rclcpp::ok())
             {
                 rclcpp::spin_some(get_node_base_interface());
 
-                float current_yaw = std::abs(lrs_utils::quaternionToYaw(current_position_.orientation));
-                RCLCPP_INFO(get_logger(), "Current yaw=%.2f", current_yaw);
-
-                float yaw_difference = yaw - current_yaw;
-                RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
-
-                RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
-                if (yaw_difference <= precision)
+                if (!is_paused)
                 {
-                    RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
-                    break;
-                }
 
-                RCLCPP_INFO(get_logger(), "Drone rotating. Current yaw=%.2f  Yaw difference=%.2f  Requested yaw=%.2f", current_yaw, yaw_difference, yaw);
+                    float current_yaw = std::abs(lrs_utils::quaternionToYaw(current_position_.orientation));
+                    RCLCPP_INFO(get_logger(), "Current yaw=%.2f", current_yaw);
+
+                    float yaw_difference = yaw - current_yaw;
+                    RCLCPP_INFO(get_logger(), "Yaw difference=%.2f", yaw_difference);
+
+                    RCLCPP_INFO(get_logger(), "%.2f <= %.2f == %d", yaw_difference, precision, yaw_difference <= precision);
+                    if (yaw_difference <= precision)
+                    {
+                        RCLCPP_INFO(get_logger(), "Drone reached request yaw %.2f", yaw);
+                        break;
+                    }
+
+                    RCLCPP_INFO(get_logger(), "Drone rotating. Current yaw=%.2f  Yaw difference=%.2f  Requested yaw=%.2f", current_yaw, yaw_difference, yaw);
+                }
+                else
+                    handlePause("handleYaw_while");
+
                 std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
             }
         }
@@ -571,23 +594,29 @@ public:
 
         // Handle position controll for circle points
         RCLCPP_INFO(get_logger(), "Handling circle positions...");
-        while (rclcpp::ok() && !is_paused && !circle_points.empty())
+        while (rclcpp::ok() && !circle_points.empty())
         {
             rclcpp::spin_some(get_node_base_interface());
 
-            publishRequestPosition("circle_task", circle_points.front());
-
-            // Check position
-            if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), circle_points.front(), precission))
+            if (!is_paused)
             {
-                if (!circle_points.empty())
+
+                publishRequestPosition("circle_task", circle_points.front());
+
+                // Check position
+                if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), circle_points.front(), precission))
                 {
-                    circle_points.pop();
-                    RCLCPP_INFO(get_logger(), "Circle point reached moving to next one");
+                    if (!circle_points.empty())
+                    {
+                        circle_points.pop();
+                        RCLCPP_INFO(get_logger(), "Circle point reached moving to next one");
+                    }
+                    else
+                        break;
                 }
-                else
-                    break;
             }
+            else
+                handlePause("handleCircle_while");
 
             std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
         }
@@ -595,16 +624,22 @@ public:
         RCLCPP_INFO(get_logger(), "Going to start position");
 
         // Return to begining
-        while (rclcpp::ok() && !is_paused)
+        while (rclcpp::ok())
         {
             rclcpp::spin_some(get_node_base_interface());
 
-            publishRequestPosition("circle-back_to_start", local_drone_position);
+            if (!is_paused)
+            {
 
-            if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), local_drone_position, precission))
-                break;
+                publishRequestPosition("circle-back_to_start", local_drone_position);
 
-            RCLCPP_INFO(get_logger(), "Going to starting circle position");
+                if (lrs_utils::isLocationInsideRegion(globalToLocal(current_position_.position), local_drone_position, precission))
+                    break;
+
+                RCLCPP_INFO(get_logger(), "Going to starting circle position");
+            }
+            else
+                handlePause("handleCircle_while_toBegining");
 
             std::this_thread::sleep_for(WHILE_CHECK_POSITION_TIMEOUT);
         }
@@ -612,10 +647,10 @@ public:
         RCLCPP_INFO(get_logger(), "Circle finished. Moving to next checkpoint");
     }
 
-    void handlePause()
+    void handlePause(std::string current_program_location)
     {
         publishRequestPosition("drone_pause_command", globalToLocal(current_position_.position));
-        RCLCPP_WARN(get_logger(), "Drone is paused");
+        RCLCPP_WARN(get_logger(), "Drone is paused in: %s", current_program_location.c_str());
     }
     // Callback functions
     void stateCallback(const mavros_msgs::msg::State::SharedPtr msg)
@@ -642,8 +677,6 @@ public:
             saved_state.saved_command = current_command_;
             saved_state.saved_floodfill_points = floodfill_points_;
             saved_state.saved_pose = current_position_;
-
-            handlePause();
 
             response->success = true;
         }
@@ -812,3 +845,5 @@ int main(int argc, char **argv)
     rclcpp::shutdown();
     return 0;
 }
+
+// FIXME: Ak sa da pauza pocas take-off preskoci jeden checkpoint
