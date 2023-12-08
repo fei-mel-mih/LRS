@@ -169,11 +169,14 @@ public:
                     RCLCPP_INFO(get_logger(), "Mission task completed. Moving to next one...");
 
                     // Move to next command
-                    commands_.erase(commands_.begin());
-                    current_command_ = commandConverter(commands_.front());
+                    if (!is_paused)
+                    {
+                        commands_.erase(commands_.begin());
+                        current_command_ = commandConverter(commands_.front());
 
-                    RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%d",
-                                current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
+                        RCLCPP_INFO(get_logger(), "Current mission command is: %.2f %.2f %.2f %d %d yaw=%d",
+                                    current_command_.x, current_command_.y, current_command_.z, current_command_.precision, current_command_.task, current_command_.yaw_value);
+                    }
 
                     // Generate new floodfill path
                     acquirePath();
